@@ -1,15 +1,3 @@
--- ============================================================
---   LordHubLib v2.0
---   Style: ASU AutoBuild / Boat Builder Hub
---   - Slight rounded corners
---   - Semi-transparent dark bg
---   - Tabs in header (horizontal)
---   - Sections slide up on select
---   - No resize bar
---   - Single instance (unload on re-run)
---   - Gear button top right
--- ============================================================
-
 -- ── Unload предыдущего экземпляра ────────────────────────────
 if _G.LordHubUnload then
     pcall(_G.LordHubUnload)
