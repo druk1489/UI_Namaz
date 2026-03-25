@@ -4,8 +4,6 @@ if _G.LordHubUnload then
 end
 
 local LordHubLib = {}
-_G.LordHubActive = true
-
 local connections = {}
 local blurEffect  = nil
 
@@ -14,179 +12,114 @@ local function trackConn(c)
     return c
 end
 
-local function unload()
+_G.LordHubUnload = function()
     _G.LordHubActive = false
-    for _,c in ipairs(connections) do
-        pcall(function() c:Disconnect() end)
-    end
+    for _,c in ipairs(connections) do pcall(function() c:Disconnect() end) end
     connections = {}
     if blurEffect then
         game:GetService("TweenService"):Create(
-            blurEffect, TweenInfo.new(0.3),
-            {Size=0}
-        ):Play()
-        task.delay(0.35, function()
-            pcall(function() blurEffect:Destroy() end)
-        end)
+            blurEffect,TweenInfo.new(0.3),{Size=0}):Play()
+        task.delay(0.4,function() pcall(function() blurEffect:Destroy() end) end)
     end
-    local PGui = game:GetService("Players").LocalPlayer
-        :WaitForChild("PlayerGui")
-    for _,gui in ipairs(PGui:GetChildren()) do
-        if gui.Name:find("LordHub") then
-            gui:Destroy()
-        end
+    local PGui=game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    for _,g in ipairs(PGui:GetChildren()) do
+        if g.Name:find("LordHub") then g:Destroy() end
     end
-    local bb = workspace:FindFirstChild("LordHubBB")
+    local bb=workspace:FindFirstChild("LordHubBB")
     if bb then bb:Destroy() end
-    local mh = PGui:FindFirstChild("LordHubMove")
-    if mh then mh:Destroy() end
-    local rh = PGui:FindFirstChild("LordHubRot")
-    if rh then rh:Destroy() end
 end
 
-_G.LordHubUnload = unload
-LordHubLib.Unload = unload
+LordHubLib.Unload = _G.LordHubUnload
+_G.LordHubActive  = true
 
--- ── Services ─────────────────────────────────────────────────
-local TweenService = game:GetService("TweenService")
-local UIS          = game:GetService("UserInputService")
-local Players      = game:GetService("Players")
-local RunService   = game:GetService("RunService")
-local LP           = Players.LocalPlayer
-local PGui         = LP:WaitForChild("PlayerGui")
+local TS       = game:GetService("TweenService")
+local UIS      = game:GetService("UserInputService")
+local Players  = game:GetService("Players")
+local LP       = Players.LocalPlayer
+local PGui     = LP:WaitForChild("PlayerGui")
 
--- ── Blur Effect (iPhone glass) ────────────────────────────────
-local cam = workspace.CurrentCamera
-blurEffect = Instance.new("BlurEffect", cam)
+-- Blur
+blurEffect = Instance.new("BlurEffect", workspace.CurrentCamera)
 blurEffect.Size = 0
-TweenService:Create(blurEffect, TweenInfo.new(0.5), {Size=12}):Play()
+TS:Create(blurEffect,TweenInfo.new(0.5),{Size=10}):Play()
 
 -- ── Тема ─────────────────────────────────────────────────────
 local T = {
-    -- Стекло
-    GLASS       = Color3.fromRGB(255, 255, 255),
-    GLASS_T     = 0.82,        -- почти прозрачный
-    GLASS_DARK  = Color3.fromRGB(10, 14, 20),
-    GLASS_DARK_T= 0.55,
-
-    -- Frosted glass слои
-    LAYER1      = Color3.fromRGB(180, 200, 230),
-    LAYER1_T    = 0.88,
-    LAYER2      = Color3.fromRGB(140, 165, 210),
-    LAYER2_T    = 0.82,
-    LAYER3      = Color3.fromRGB(20, 28, 42),
-    LAYER3_T    = 0.45,
-
-    -- Header (тёмное стекло)
-    HDR         = Color3.fromRGB(8, 12, 20),
-    HDR_T       = 0.35,
-
-    -- Секции
-    SECT        = Color3.fromRGB(255, 255, 255),
-    SECT_T      = 0.90,
-    SECT_DARK   = Color3.fromRGB(15, 20, 32),
-    SECT_DARK_T = 0.50,
-
-    -- Кнопки
-    BTN         = Color3.fromRGB(255, 255, 255),
-    BTN_T       = 0.75,
-    BTN_DARK    = Color3.fromRGB(20, 30, 50),
-    BTN_DARK_T  = 0.40,
-
-    -- Input
-    INPUT       = Color3.fromRGB(255, 255, 255),
-    INPUT_T     = 0.80,
-
-    -- Accent (iPhone blue)
-    ACCENT      = Color3.fromRGB(10, 132, 255),
-    ACCENT2     = Color3.fromRGB(48, 209, 88),  -- green
-    ACCENT3     = Color3.fromRGB(255, 159, 10), -- orange
-
-    -- Text
-    TXT         = Color3.fromRGB(255, 255, 255),
-    TXT_DARK    = Color3.fromRGB(20, 20, 20),
-    MUT         = Color3.fromRGB(180, 190, 210),
-    MUT_DARK    = Color3.fromRGB(100, 110, 130),
-
-    -- System
-    SEP         = Color3.fromRGB(255, 255, 255),
-    SEP_T       = 0.80,
-    GREEN       = Color3.fromRGB(48, 209, 88),
-    RED         = Color3.fromRGB(255, 69, 58),
-    YEL         = Color3.fromRGB(255, 214, 10),
-    STAR        = Color3.fromRGB(255, 200, 40),
-
-    CORNER      = 12,   -- iPhone-like corners
-    CORNER_SM   = 8,
-    CORNER_XS   = 6,
+    BG      = Color3.fromRGB(8,  12, 20),
+    BG_T    = 0.45,
+    HDR     = Color3.fromRGB(5,  8,  15),
+    HDR_T   = 0.30,
+    ROW     = Color3.fromRGB(20, 28, 42),
+    ROW_T   = 0.50,
+    BTN     = Color3.fromRGB(25, 35, 55),
+    BTN_T   = 0.35,
+    ACCENT  = Color3.fromRGB(10, 132,255),
+    TXT     = Color3.fromRGB(240,245,255),
+    MUT     = Color3.fromRGB(140,155,180),
+    SEP     = Color3.fromRGB(255,255,255),
+    GREEN   = Color3.fromRGB(48, 209, 88),
+    RED     = Color3.fromRGB(255, 69, 58),
+    YEL     = Color3.fromRGB(255,214, 10),
+    STAR    = Color3.fromRGB(255,200, 40),
+    CORNER  = 10,
+    CORNER_S= 6,
 }
 LordHubLib.Theme = T
 
--- ── Утилиты ──────────────────────────────────────────────────
-local function tw(obj, props, dur, style, dir)
-    local t = TweenService:Create(obj,
-        TweenInfo.new(
-            dur   or 0.2,
-            style or Enum.EasingStyle.Quart,
-            dir   or Enum.EasingDirection.Out
-        ), props)
-    t:Play()
-    return t
+-- ── Хелперы ──────────────────────────────────────────────────
+local function tw(o,p,d,s,dr)
+    TS:Create(o,TweenInfo.new(d or .18,s or Enum.EasingStyle.Quart,
+        dr or Enum.EasingDirection.Out),p):Play()
 end
 
-local function cr(r, p)
-    local c = Instance.new("UICorner", p)
-    c.CornerRadius = UDim.new(0, r)
-    return c
+local function cr(r,p)
+    local c=Instance.new("UICorner",p)
+    c.CornerRadius=UDim.new(0,r)
 end
 
-local function pad(p, v, h)
-    local ui = Instance.new("UIPadding", p)
-    ui.PaddingTop    = UDim.new(0, v)
-    ui.PaddingBottom = UDim.new(0, v)
-    ui.PaddingLeft   = UDim.new(0, h)
-    ui.PaddingRight  = UDim.new(0, h)
-    return ui
+local function pd(p,v,h)
+    local u=Instance.new("UIPadding",p)
+    u.PaddingTop=UDim.new(0,v); u.PaddingBottom=UDim.new(0,v)
+    u.PaddingLeft=UDim.new(0,h); u.PaddingRight=UDim.new(0,h)
 end
 
--- Создаёт glass frame с несколькими слоями
-local function glassFrame(parent, props)
+-- Стеклянный фрейм
+local function glass(parent, bgCol, bgT, props)
     local f = Instance.new("Frame", parent)
+    f.BackgroundColor3 = bgCol or T.BG
+    f.BackgroundTransparency = bgT or T.BG_T
     f.BorderSizePixel = 0
-    f.BackgroundColor3 = T.GLASS_DARK
-    f.BackgroundTransparency = T.GLASS_DARK_T
-    for k,v in pairs(props or {}) do
-        pcall(function() f[k]=v end)
+    if props then
+        for k,v in pairs(props) do
+            pcall(function() f[k]=v end)
+        end
     end
 
-    -- Световой слой сверху (имитация отражения)
+    -- Белая обводка (стекло)
+    local st = Instance.new("UIStroke", f)
+    st.Color = Color3.fromRGB(255,255,255)
+    st.Thickness = 1
+    st.Transparency = 0.65
+    st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+    -- Световой блик сверху
     local shine = Instance.new("Frame", f)
-    shine.Size = UDim2.new(1,0,0.45,0)
-    shine.Position = UDim2.new(0,0,0,0)
-    shine.BackgroundColor3 = T.GLASS
+    shine.Size = UDim2.new(1,0,0.4,0)
+    shine.BackgroundColor3 = Color3.fromRGB(255,255,255)
     shine.BackgroundTransparency = 0.93
     shine.BorderSizePixel = 0
-    shine.ZIndex = (f.ZIndex or 1) + 1
-
-    -- Gradient на shine
-    local grad = Instance.new("UIGradient", shine)
-    grad.Rotation = 90
-    grad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 1),
+    shine.ZIndex = (f.ZIndex or 1)+1
+    local g = Instance.new("UIGradient", shine)
+    g.Rotation = 90
+    g.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,0),
+        NumberSequenceKeypoint.new(1,1),
     })
 
-    -- Тонкая рамка (стекло)
-    local stroke = Instance.new("UIStroke", f)
-    stroke.Color = T.GLASS
-    stroke.Thickness = 1
-    stroke.Transparency = 0.6
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-    return f, stroke, shine
+    return f, st
 end
 
-local function mkLabel(parent, props)
+local function mkTxt(parent, props)
     local l = Instance.new("TextLabel", parent)
     l.BackgroundTransparency = 1
     l.BorderSizePixel = 0
@@ -194,9 +127,7 @@ local function mkLabel(parent, props)
     l.TextSize = 11
     l.TextColor3 = T.TXT
     l.TextXAlignment = Enum.TextXAlignment.Left
-    for k,v in pairs(props or {}) do
-        pcall(function() l[k]=v end)
-    end
+    for k,v in pairs(props or {}) do pcall(function() l[k]=v end) end
     return l
 end
 
@@ -208,111 +139,71 @@ local function mkBtn(parent, props)
     b.TextColor3 = T.TXT
     b.AutoButtonColor = false
     b.BackgroundTransparency = 1
-    for k,v in pairs(props or {}) do
-        pcall(function() b[k]=v end)
-    end
+    for k,v in pairs(props or {}) do pcall(function() b[k]=v end) end
     return b
 end
 
 -- ── Notifications ─────────────────────────────────────────────
-local notifSG = Instance.new("ScreenGui", PGui)
-notifSG.Name           = "LordHub_Notif"
-notifSG.ResetOnSpawn   = false
-notifSG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-notifSG.DisplayOrder   = 999
+local notifSG = Instance.new("ScreenGui",PGui)
+notifSG.Name="LordHub_Notif"; notifSG.ResetOnSpawn=false
+notifSG.DisplayOrder=999; notifSG.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 
-local notifHolder = Instance.new("Frame", notifSG)
-notifHolder.Size = UDim2.new(0,280,0,500)
-notifHolder.Position = UDim2.new(1,-288,0,12)
-notifHolder.BackgroundTransparency = 1
-notifHolder.BorderSizePixel = 0
+local nHolder = Instance.new("Frame",notifSG)
+nHolder.Size=UDim2.new(0,270,0,500)
+nHolder.Position=UDim2.new(1,-278,0,10)
+nHolder.BackgroundTransparency=1; nHolder.BorderSizePixel=0
+local nLayout=Instance.new("UIListLayout",nHolder)
+nLayout.Padding=UDim.new(0,5)
+nLayout.SortOrder=Enum.SortOrder.LayoutOrder
+local nN=0
 
-local notifList = Instance.new("UIListLayout", notifHolder)
-notifList.Padding = UDim.new(0,6)
-notifList.VerticalAlignment = Enum.VerticalAlignment.Top
-notifList.SortOrder = Enum.SortOrder.LayoutOrder
-local notifN = 0
+function LordHubLib.Notify(title,msg,kind,dur)
+    nN=nN+1; dur=dur or 4
+    local acc=kind=="error" and T.RED or kind=="success" and T.GREEN
+        or kind=="warn" and T.YEL or T.ACCENT
 
-function LordHubLib.Notify(title, msg, kind, duration)
-    notifN   = notifN + 1
-    duration = duration or 4
-    local acc = kind=="error"   and T.RED
-             or kind=="success" and T.GREEN
-             or kind=="warn"    and T.YEL
-             or T.ACCENT
-
-    -- Glass notification frame
-    local f,fStroke = glassFrame(notifHolder, {
-        Size = UDim2.new(1,0,0,60),
-        BackgroundColor3 = T.GLASS_DARK,
-        BackgroundTransparency = 0.25,
-        ClipsDescendants = true,
-        LayoutOrder = notifN,
-        ZIndex = 200,
+    local f,fSt=glass(nHolder,T.BG,0.20,{
+        Size=UDim2.new(1,0,0,56),
+        ClipsDescendants=true,
+        LayoutOrder=nN,
+        ZIndex=200,
     })
-    cr(T.CORNER, f)
-    fStroke.Color = acc
-    fStroke.Transparency = 0.3
+    cr(T.CORNER,f)
+    fSt.Color=acc; fSt.Transparency=0.3
 
-    -- Accent line left
-    local bar = Instance.new("Frame", f)
-    bar.Size = UDim2.new(0,3,0.7,0)
-    bar.Position = UDim2.new(0,0,0.15,0)
-    bar.BackgroundColor3 = acc
-    bar.BorderSizePixel = 0
+    local bar=Instance.new("Frame",f)
+    bar.Size=UDim2.new(0,3,0.7,0)
+    bar.Position=UDim2.new(0,0,0.15,0)
+    bar.BackgroundColor3=acc; bar.BorderSizePixel=0
     cr(2,bar)
 
-    -- Progress bar
-    local prog = Instance.new("Frame", f)
-    prog.Size = UDim2.new(1,0,0,2)
-    prog.Position = UDim2.new(0,0,1,-2)
-    prog.BackgroundColor3 = acc
-    prog.BackgroundTransparency = 0.2
-    prog.BorderSizePixel = 0
+    local prog=Instance.new("Frame",f)
+    prog.Size=UDim2.new(1,0,0,2)
+    prog.Position=UDim2.new(0,0,1,-2)
+    prog.BackgroundColor3=acc; prog.BorderSizePixel=0
 
-    -- Icon dot
-    local dot = Instance.new("Frame", f)
-    dot.Size = UDim2.new(0,6,0,6)
-    dot.Position = UDim2.new(0,10,0,10)
-    dot.BackgroundColor3 = acc
-    dot.BorderSizePixel = 0
-    cr(3,dot)
-
-    mkLabel(f, {
-        Size = UDim2.new(1,-20,0,18),
-        Position = UDim2.new(0,22,0,6),
-        Text = tostring(title),
-        TextColor3 = acc,
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        ZIndex = 201,
+    mkTxt(f,{
+        Size=UDim2.new(1,-14,0,19),
+        Position=UDim2.new(0,10,0,5),
+        Text=tostring(title),
+        TextColor3=acc,
+        Font=Enum.Font.GothamBold,
+        TextSize=12,ZIndex=201,
     })
-    mkLabel(f, {
-        Size = UDim2.new(1,-20,0,28),
-        Position = UDim2.new(0,22,0,26),
-        Text = tostring(msg),
-        TextColor3 = T.MUT,
-        TextSize = 10,
-        TextWrapped = true,
-        ZIndex = 201,
+    mkTxt(f,{
+        Size=UDim2.new(1,-14,0,16),
+        Position=UDim2.new(0,10,0,27),
+        Text=tostring(msg),
+        TextColor3=T.MUT,
+        TextSize=10,TextWrapped=true,ZIndex=201,
     })
 
-    -- Анимация входа
-    f.Position = UDim2.new(0,300,0,0)
-    f.BackgroundTransparency = 1
-    tw(f, {
-        Position = UDim2.new(0,0,0,0),
-        BackgroundTransparency = 0.25,
-    }, 0.35, Enum.EasingStyle.Back)
-    tw(prog, {Size=UDim2.new(0,0,0,2)}, duration, Enum.EasingStyle.Linear)
-
-    task.delay(duration, function()
-        tw(f, {
-            Position = UDim2.new(0,300,0,0),
-            BackgroundTransparency = 1,
-        }, 0.25)
-        task.wait(0.28)
-        f:Destroy()
+    f.Position=UDim2.new(0,290,0,0)
+    tw(f,{Position=UDim2.new(0,0,0,0)},0.3,Enum.EasingStyle.Back)
+    tw(prog,{Size=UDim2.new(0,0,0,2)},dur,Enum.EasingStyle.Linear)
+    task.delay(dur,function()
+        tw(f,{Position=UDim2.new(0,290,0,0)},0.2)
+        task.wait(0.22); f:Destroy()
     end)
 end
 
@@ -320,212 +211,170 @@ end
 --   WINDOW
 -- ============================================================
 function LordHubLib.NewWindow(cfg)
-    cfg    = cfg or {}
+    cfg=cfg or {}
     local title  = cfg.Title    or "Lord Hub"
     local width  = cfg.Width    or 240
     local height = cfg.Height   or 520
     local accent = cfg.Accent   or T.ACCENT
     local pos    = cfg.Position or UDim2.new(0,40,0,60)
 
-    -- ── ScreenGui ────────────────────────────────────────────
-    local SG = Instance.new("ScreenGui", PGui)
-    SG.Name            = cfg.Name or "LordHub_GUI"
-    SG.ResetOnSpawn    = false
-    SG.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-    SG.DisplayOrder    = 100
+    local SG=Instance.new("ScreenGui",PGui)
+    SG.Name=cfg.Name or "LordHub_GUI"
+    SG.ResetOnSpawn=false
+    SG.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+    SG.DisplayOrder=100
 
-    -- ── Main Glass Frame ─────────────────────────────────────
-    local WIN, winStroke = glassFrame(SG, {
-        Size = UDim2.new(0,width,0,height),
-        Position = pos,
-        BackgroundColor3 = T.GLASS_DARK,
-        BackgroundTransparency = T.GLASS_DARK_T,
-        ClipsDescendants = true,
+    -- Main window glass
+    local WIN,winSt=glass(SG,T.BG,T.BG_T,{
+        Size=UDim2.new(0,width,0,height),
+        Position=pos,
+        ClipsDescendants=true,
     })
-    cr(T.CORNER, WIN)
-    winStroke.Color = accent
-    winStroke.Transparency = 0.4
+    cr(T.CORNER,WIN)
+    winSt.Color=accent; winSt.Transparency=0.4
 
-    -- Появление окна
-    WIN.BackgroundTransparency = 1
-    WIN.Position = UDim2.new(
-        pos.X.Scale, pos.X.Offset,
-        pos.Y.Scale, pos.Y.Offset - 20
-    )
-    tw(WIN, {
-        BackgroundTransparency = T.GLASS_DARK_T,
-        Position = pos,
-    }, 0.4, Enum.EasingStyle.Back)
+    -- Появление
+    WIN.Position=UDim2.new(pos.X.Scale,pos.X.Offset,pos.Y.Scale,pos.Y.Offset-18)
+    WIN.BackgroundTransparency=1
+    tw(WIN,{
+        BackgroundTransparency=T.BG_T,
+        Position=pos,
+    },0.35,Enum.EasingStyle.Back)
 
-    -- ── Header (тёмное стекло) ────────────────────────────────
-    local HDR, hdrStroke = glassFrame(WIN, {
-        Size = UDim2.new(1,0,0,32),
-        BackgroundColor3 = T.HDR,
-        BackgroundTransparency = T.HDR_T,
-        ZIndex = 5,
+    -- ── Header ───────────────────────────────────────────────
+    local HDR,hdrSt=glass(WIN,T.HDR,T.HDR_T,{
+        Size=UDim2.new(1,0,0,30),
+        ZIndex=5,
     })
-    hdrStroke.Transparency = 0.7
+    hdrSt.Transparency=0.75
 
-    -- Header bottom border
-    local hdrBorder = Instance.new("Frame", HDR)
-    hdrBorder.Size = UDim2.new(1,0,0,1)
-    hdrBorder.Position = UDim2.new(0,0,1,-1)
-    hdrBorder.BackgroundColor3 = accent
-    hdrBorder.BackgroundTransparency = 0.5
-    hdrBorder.BorderSizePixel = 0
+    local hdrLine=Instance.new("Frame",HDR)
+    hdrLine.Size=UDim2.new(1,0,0,1)
+    hdrLine.Position=UDim2.new(0,0,1,-1)
+    hdrLine.BackgroundColor3=accent
+    hdrLine.BackgroundTransparency=0.5
+    hdrLine.BorderSizePixel=0
 
-    -- Collapse btn
-    local colBtn = mkBtn(HDR, {
-        Size = UDim2.new(0,24,0,24),
-        Position = UDim2.new(0,4,0.5,-12),
-        Text = "▼",
-        TextColor3 = T.MUT,
-        TextSize = 10,
-        ZIndex = 6,
+    -- Collapse
+    local colBtn=mkBtn(HDR,{
+        Size=UDim2.new(0,22,0,22),
+        Position=UDim2.new(0,4,0.5,-11),
+        Text="▼",TextColor3=T.MUT,TextSize=10,ZIndex=6,
+    })
+    mkTxt(HDR,{
+        Size=UDim2.new(1,-90,1,0),
+        Position=UDim2.new(0,26,0,0),
+        Text=title,TextColor3=T.TXT,
+        Font=Enum.Font.GothamBold,TextSize=13,ZIndex=6,
     })
 
-    -- Title
-    mkLabel(HDR, {
-        Size = UDim2.new(1,-90,1,0),
-        Position = UDim2.new(0,28,0,0),
-        Text = title,
-        TextColor3 = T.TXT,
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        ZIndex = 6,
-    })
+    -- Header right
+    local hdrR=Instance.new("Frame",HDR)
+    hdrR.Size=UDim2.new(0,66,1,0)
+    hdrR.Position=UDim2.new(1,-68,0,0)
+    hdrR.BackgroundTransparency=1; hdrR.BorderSizePixel=0; hdrR.ZIndex=6
+    local hdrRL=Instance.new("UIListLayout",hdrR)
+    hdrRL.FillDirection=Enum.FillDirection.Horizontal
+    hdrRL.HorizontalAlignment=Enum.HorizontalAlignment.Right
+    hdrRL.VerticalAlignment=Enum.VerticalAlignment.Center
+    hdrRL.Padding=UDim.new(0,3)
 
-    -- Header right buttons
-    local hdrRight = Instance.new("Frame", HDR)
-    hdrRight.Size = UDim2.new(0,68,1,0)
-    hdrRight.Position = UDim2.new(1,-70,0,0)
-    hdrRight.BackgroundTransparency = 1
-    hdrRight.BorderSizePixel = 0
-    hdrRight.ZIndex = 6
-    local hdrRL = Instance.new("UIListLayout", hdrRight)
-    hdrRL.FillDirection = Enum.FillDirection.Horizontal
-    hdrRL.HorizontalAlignment = Enum.HorizontalAlignment.Right
-    hdrRL.VerticalAlignment = Enum.VerticalAlignment.Center
-    hdrRL.Padding = UDim.new(0,3)
-
-    local function makeHdrBtn(icon, col)
-        local bg, bgS = glassFrame(hdrRight, {
-            Size = UDim2.new(0,22,0,22),
-            BackgroundColor3 = T.GLASS_DARK,
-            BackgroundTransparency = 0.5,
-            ZIndex = 7,
+    local function makeHBtn(icon,col)
+        local bg,bgS=glass(hdrR,T.HDR,0.55,{
+            Size=UDim2.new(0,20,0,20),ZIndex=7,
         })
-        cr(T.CORNER_XS, bg)
-        bgS.Transparency = 0.7
-
-        local b = mkBtn(bg, {
-            Size = UDim2.new(1,0,1,0),
-            Text = icon,
-            TextColor3 = col or T.MUT,
-            TextSize = 13,
-            ZIndex = 8,
+        cr(T.CORNER_S,bg)
+        bgS.Transparency=0.75
+        local b=mkBtn(bg,{
+            Size=UDim2.new(1,0,1,0),
+            Text=icon,TextColor3=col or T.MUT,TextSize=13,ZIndex=8,
         })
         trackConn(b.MouseEnter:Connect(function()
             tw(bg,{BackgroundTransparency=0.2},.1)
             tw(b,{TextColor3=T.TXT},.1)
         end))
         trackConn(b.MouseLeave:Connect(function()
-            tw(bg,{BackgroundTransparency=0.5},.1)
+            tw(bg,{BackgroundTransparency=0.55},.1)
             tw(b,{TextColor3=col or T.MUT},.1)
         end))
         return b
     end
 
-    -- Collapse logic
-    local collapsed = false
-    local savedH    = height
+    local collapsed=false; local savedH=height
     colBtn.MouseButton1Click:Connect(function()
-        collapsed = not collapsed
+        collapsed=not collapsed
         if collapsed then
-            savedH = WIN.AbsoluteSize.Y
-            tw(WIN,{Size=UDim2.new(0,width,0,32)},0.25,Enum.EasingStyle.Quart)
-            colBtn.Text = "▶"
+            savedH=WIN.AbsoluteSize.Y
+            tw(WIN,{Size=UDim2.new(0,width,0,30)},0.22)
+            colBtn.Text="▶"
         else
-            tw(WIN,{Size=UDim2.new(0,width,0,savedH)},0.3,Enum.EasingStyle.Back)
-            colBtn.Text = "▼"
+            tw(WIN,{Size=UDim2.new(0,width,0,savedH)},0.28,Enum.EasingStyle.Back)
+            colBtn.Text="▼"
         end
     end)
 
-    -- ── Drag ─────────────────────────────────────────────────
-    local dragging,dStart,wStart = false,nil,nil
+    -- Drag
+    local drag,dS,wS=false,nil,nil
     trackConn(HDR.InputBegan:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 then
-            dragging=true; dStart=i.Position; wStart=WIN.Position
-            tw(WIN,{BackgroundTransparency=T.GLASS_DARK_T+0.1},.1)
+            drag=true; dS=i.Position; wS=WIN.Position
         end
     end))
     trackConn(HDR.InputEnded:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 then
-            dragging=false
-            tw(WIN,{BackgroundTransparency=T.GLASS_DARK_T},.1)
-        end
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end
     end))
     trackConn(UIS.InputChanged:Connect(function(i)
-        if dragging and i.UserInputType==Enum.UserInputType.MouseMovement then
-            local d=i.Position-dStart
-            WIN.Position=UDim2.new(
-                wStart.X.Scale,wStart.X.Offset+d.X,
-                wStart.Y.Scale,wStart.Y.Offset+d.Y
-            )
+        if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+            local d=i.Position-dS
+            WIN.Position=UDim2.new(wS.X.Scale,wS.X.Offset+d.X,wS.Y.Scale,wS.Y.Offset+d.Y)
         end
     end))
 
     -- ── Tab Bar ──────────────────────────────────────────────
-    local TABBAR, tabBarStroke = glassFrame(WIN, {
-        Size = UDim2.new(1,0,0,28),
-        Position = UDim2.new(0,0,0,32),
-        BackgroundColor3 = T.HDR,
-        BackgroundTransparency = 0.4,
+    local TABBAR,tbSt=glass(WIN,T.HDR,0.35,{
+        Size=UDim2.new(1,0,0,26),
+        Position=UDim2.new(0,0,0,30),
     })
-    tabBarStroke.Transparency = 0.8
+    tbSt.Transparency=0.85
+    local tabLL=Instance.new("UIListLayout",TABBAR)
+    tabLL.FillDirection=Enum.FillDirection.Horizontal
+    tabLL.SortOrder=Enum.SortOrder.LayoutOrder
 
-    local tabLayout = Instance.new("UIListLayout", TABBAR)
-    tabLayout.FillDirection = Enum.FillDirection.Horizontal
-    tabLayout.SortOrder     = Enum.SortOrder.LayoutOrder
-    tabLayout.Padding       = UDim.new(0,0)
+    local tabBotLine=Instance.new("Frame",WIN)
+    tabBotLine.Size=UDim2.new(1,0,0,1)
+    tabBotLine.Position=UDim2.new(0,0,0,56)
+    tabBotLine.BackgroundColor3=accent
+    tabBotLine.BackgroundTransparency=0.5
+    tabBotLine.BorderSizePixel=0
 
-    -- Tab bottom accent line
-    local tabLine = Instance.new("Frame", WIN)
-    tabLine.Size = UDim2.new(1,0,0,1)
-    tabLine.Position = UDim2.new(0,0,0,60)
-    tabLine.BackgroundColor3 = accent
-    tabLine.BackgroundTransparency = 0.5
-    tabLine.BorderSizePixel = 0
+    -- Content
+    local CONTENT=Instance.new("Frame",WIN)
+    CONTENT.Size=UDim2.new(1,0,1,-57)
+    CONTENT.Position=UDim2.new(0,0,0,57)
+    CONTENT.BackgroundTransparency=1
+    CONTENT.BorderSizePixel=0
+    CONTENT.ClipsDescendants=true
 
-    -- ── Content ───────────────────────────────────────────────
-    local CONTENT = Instance.new("Frame", WIN)
-    CONTENT.Size = UDim2.new(1,0,1,-61)
-    CONTENT.Position = UDim2.new(0,0,0,61)
-    CONTENT.BackgroundTransparency = 1
-    CONTENT.BorderSizePixel = 0
-    CONTENT.ClipsDescendants = true
+    local tabs={}
+    local activeTab=nil
+    local tabCount=0
 
-    -- ── Tabs система ─────────────────────────────────────────
-    local tabs      = {}
-    local activeTab = nil
-    local tabCount  = 0
-
-    local function makeScroll(parent)
-        local s = Instance.new("ScrollingFrame", parent)
-        s.Size = UDim2.new(1,0,1,0)
-        s.BackgroundTransparency = 1
-        s.BorderSizePixel = 0
-        s.ScrollBarThickness = 2
-        s.ScrollBarImageColor3 = accent
-        s.CanvasSize = UDim2.new(0,0,0,0)
-        s.Visible = false
-        s.ScrollingDirection = Enum.ScrollingDirection.Y
-        local sl = Instance.new("UIListLayout", s)
-        sl.Padding = UDim.new(0,0)
-        sl.SortOrder = Enum.SortOrder.LayoutOrder
-        sl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    local function makeScroll()
+        local s=Instance.new("ScrollingFrame",CONTENT)
+        s.Size=UDim2.new(1,0,1,0)
+        s.BackgroundTransparency=1
+        s.BorderSizePixel=0
+        s.ScrollBarThickness=2
+        s.ScrollBarImageColor3=accent
+        s.CanvasSize=UDim2.new(0,0,0,0)
+        s.Visible=false
+        s.ScrollingDirection=Enum.ScrollingDirection.Y
+        local sl=Instance.new("UIListLayout",s)
+        sl.Padding=UDim.new(0,0)
+        sl.SortOrder=Enum.SortOrder.LayoutOrder
+        sl.HorizontalAlignment=Enum.HorizontalAlignment.Center
         sl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            s.CanvasSize = UDim2.new(0,0,0,sl.AbsoluteContentSize.Y+8)
+            s.CanvasSize=UDim2.new(0,0,0,sl.AbsoluteContentSize.Y+8)
         end)
         return s
     end
@@ -533,25 +382,23 @@ function LordHubLib.NewWindow(cfg)
     local function switchTab(name)
         if activeTab==name then return end
         if activeTab and tabs[activeTab] then
-            local old = tabs[activeTab]
-            old.scroll.Visible = false
-            tw(old.btn,{TextColor3=T.MUT:Lerp(T.TXT,0.2)},.15)
+            local old=tabs[activeTab]
+            old.scroll.Visible=false
+            tw(old.btn,{TextColor3=T.MUT},.15)
             tw(old.ul,{BackgroundTransparency=1},.15)
-            tw(old.bg,{BackgroundTransparency=1},.15)
         end
-        activeTab = name
-        local new = tabs[name]
-        new.scroll.Visible = true
+        activeTab=name
+        local new=tabs[name]
+        new.scroll.Visible=true
         tw(new.btn,{TextColor3=T.TXT},.15)
-        tw(new.ul,{BackgroundTransparency=0.3},.15)
-        tw(new.bg,{BackgroundTransparency=0.8},.15)
+        tw(new.ul,{BackgroundTransparency=0.2},.15)
     end
 
-    -- ── Section API factory ───────────────────────────────────
-    local function makeSectionAPI(scroll, ac)
-        ac = ac or accent
-        local rowN = 0
-        local api  = {}
+    -- ── Section API ───────────────────────────────────────────
+    local function makeSAPI(scroll, ac)
+        ac=ac or accent
+        local rowN=0
+        local api={}
 
         function api.Space(h)
             rowN=rowN+1
@@ -564,41 +411,37 @@ function LordHubLib.NewWindow(cfg)
 
         function api.Separator()
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,9)
-            wrap.BackgroundTransparency=1
-            wrap.BorderSizePixel=0
-            wrap.LayoutOrder=rowN
-            local f=Instance.new("Frame",wrap)
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,8)
+            w.BackgroundTransparency=1
+            w.BorderSizePixel=0
+            w.LayoutOrder=rowN
+            local f=Instance.new("Frame",w)
             f.Size=UDim2.new(1,-16,0,1)
             f.Position=UDim2.new(0,8,0.5,0)
             f.BackgroundColor3=T.SEP
-            f.BackgroundTransparency=T.SEP_T
+            f.BackgroundTransparency=0.75
             f.BorderSizePixel=0
         end
 
-        function api.SectionHeader(sTitle, ac2)
+        function api.SectionHeader(sTitle,ac2)
             ac2=ac2 or ac
             rowN=rowN+1
-            -- Glass section header
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,24)
-            wrap.BackgroundTransparency=1
-            wrap.BorderSizePixel=0
-            wrap.LayoutOrder=rowN
-            pad(wrap,0,8)
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,22)
+            w.BackgroundTransparency=1
+            w.BorderSizePixel=0
+            w.LayoutOrder=rowN
+            pd(w,0,8)
 
-            local f,fS=glassFrame(wrap,{
+            local f,fS=glass(w,T.HDR,0.55,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=T.GLASS_DARK,
-                BackgroundTransparency=0.65,
             })
-            cr(T.CORNER_XS,f)
-            fS.Color=ac2
-            fS.Transparency=0.6
+            cr(T.CORNER_S,f)
+            fS.Color=ac2; fS.Transparency=0.5
 
-            mkLabel(f,{
-                Size=UDim2.new(1,-20,1,0),
+            mkTxt(f,{
+                Size=UDim2.new(1,-10,1,0),
                 Position=UDim2.new(0,10,0,0),
                 Text="— "..tostring(sTitle),
                 TextColor3=ac2,
@@ -606,19 +449,19 @@ function LordHubLib.NewWindow(cfg)
                 TextSize=10,
             })
 
-            -- Slide up анимация
-            wrap.Position=UDim2.new(0,0,0,10)
-            tw(wrap,{Position=UDim2.new(0,0,0,0)},0.3,Enum.EasingStyle.Back)
+            -- Slide up
+            w.Position=UDim2.new(0,0,0,8)
+            tw(w,{Position=UDim2.new(0,0,0,0)},0.28,Enum.EasingStyle.Back)
         end
 
-        function api.Label(text, col, indent)
+        function api.Label(text,col,indent)
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,18)
-            wrap.BackgroundTransparency=1
-            wrap.BorderSizePixel=0
-            wrap.LayoutOrder=rowN
-            local l=mkLabel(wrap,{
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,18)
+            w.BackgroundTransparency=1
+            w.BorderSizePixel=0
+            w.LayoutOrder=rowN
+            local l=mkTxt(w,{
                 Size=UDim2.new(1,-(indent or 8),1,0),
                 Position=UDim2.new(0,indent or 8,0,0),
                 Text=tostring(text),
@@ -628,47 +471,38 @@ function LordHubLib.NewWindow(cfg)
             return l
         end
 
-        function api.Button(text, col, cb)
+        function api.Button(text,col,cb)
             rowN=rowN+1
-            col=col or T.BTN_DARK
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,32)
-            wrap.BackgroundTransparency=1
-            wrap.LayoutOrder=rowN
-            pad(wrap,3,8)
+            col=col or T.BTN
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,32)
+            w.BackgroundTransparency=1
+            w.LayoutOrder=rowN
+            pd(w,3,8)
 
-            -- Glass button
-            local f,fS=glassFrame(wrap,{
+            local f,fS=glass(w,col,0.40,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=col,
-                BackgroundTransparency=0.45,
             })
-            cr(T.CORNER_SM,f)
-            fS.Color=T.GLASS
-            fS.Transparency=0.7
+            cr(T.CORNER_S,f)
+            fS.Transparency=0.65
 
             local b=mkBtn(f,{
                 Size=UDim2.new(1,0,1,0),
                 Text=tostring(text),
                 TextColor3=T.TXT,
-                Font=Enum.Font.GothamBold,
-                TextSize=11,
             })
-
             trackConn(b.MouseEnter:Connect(function()
-                tw(f,{BackgroundTransparency=0.2},.12)
-                tw(fS,{Transparency=0.4},.12)
+                tw(f,{BackgroundTransparency=0.15},.12)
             end))
             trackConn(b.MouseLeave:Connect(function()
-                tw(f,{BackgroundTransparency=0.45},.12)
-                tw(fS,{Transparency=0.7},.12)
+                tw(f,{BackgroundTransparency=0.40},.12)
             end))
             trackConn(b.MouseButton1Down:Connect(function()
                 tw(f,{BackgroundTransparency=0.6,
                     Size=UDim2.new(0.97,0,0.88,0)},.08)
             end))
             trackConn(b.MouseButton1Up:Connect(function()
-                tw(f,{BackgroundTransparency=0.45,
+                tw(f,{BackgroundTransparency=0.40,
                     Size=UDim2.new(1,0,1,0)},.15,Enum.EasingStyle.Back)
             end))
             if cb then trackConn(b.MouseButton1Click:Connect(cb)) end
@@ -677,45 +511,41 @@ function LordHubLib.NewWindow(cfg)
 
         function api.Button2(t1,c1,t2,c2,cb1,cb2)
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,32)
-            wrap.BackgroundTransparency=1
-            wrap.LayoutOrder=rowN
-            pad(wrap,3,8)
-            local inner=Instance.new("Frame",wrap)
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,32)
+            w.BackgroundTransparency=1
+            w.LayoutOrder=rowN
+            pd(w,3,8)
+            local inner=Instance.new("Frame",w)
             inner.Size=UDim2.new(1,0,1,0)
             inner.BackgroundTransparency=1
-            local ul=Instance.new("UIListLayout",inner)
-            ul.FillDirection=Enum.FillDirection.Horizontal
-            ul.Padding=UDim.new(0,6)
+            local ul2=Instance.new("UIListLayout",inner)
+            ul2.FillDirection=Enum.FillDirection.Horizontal
+            ul2.Padding=UDim.new(0,6)
 
             local function mkB(t,col,cb)
-                col=col or T.BTN_DARK
-                local f,fS=glassFrame(inner,{
+                col=col or T.BTN
+                local f,fS=glass(inner,col,0.40,{
                     Size=UDim2.new(0.5,-3,1,0),
-                    BackgroundColor3=col,
-                    BackgroundTransparency=0.45,
                 })
-                cr(T.CORNER_SM,f)
-                fS.Transparency=0.7
+                cr(T.CORNER_S,f)
+                fS.Transparency=0.65
                 local b=mkBtn(f,{
                     Size=UDim2.new(1,0,1,0),
-                    Text=tostring(t),
-                    TextColor3=T.TXT,
-                    TextSize=10,
+                    Text=tostring(t),TextSize=10,
                 })
                 trackConn(b.MouseEnter:Connect(function()
-                    tw(f,{BackgroundTransparency=0.2},.12)
+                    tw(f,{BackgroundTransparency=0.15},.12)
                 end))
                 trackConn(b.MouseLeave:Connect(function()
-                    tw(f,{BackgroundTransparency=0.45},.12)
+                    tw(f,{BackgroundTransparency=0.40},.12)
                 end))
                 trackConn(b.MouseButton1Down:Connect(function()
                     tw(f,{BackgroundTransparency=0.6,
                         Size=UDim2.new(0.47,-3,0.88,0)},.08)
                 end))
                 trackConn(b.MouseButton1Up:Connect(function()
-                    tw(f,{BackgroundTransparency=0.45,
+                    tw(f,{BackgroundTransparency=0.40,
                         Size=UDim2.new(0.5,-3,1,0)},.15,Enum.EasingStyle.Back)
                 end))
                 if cb then trackConn(b.MouseButton1Click:Connect(cb)) end
@@ -724,23 +554,21 @@ function LordHubLib.NewWindow(cfg)
             return mkB(t1,c1,cb1), mkB(t2,c2,cb2)
         end
 
-        function api.Input(ph, numeric, default, cb)
+        function api.Input(ph,numeric,default,cb)
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,30)
-            wrap.BackgroundTransparency=1
-            wrap.LayoutOrder=rowN
-            pad(wrap,3,8)
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,30)
+            w.BackgroundTransparency=1
+            w.LayoutOrder=rowN
+            pd(w,3,8)
 
-            local f,fS=glassFrame(wrap,{
+            local f,fS=glass(w,T.ROW,T.ROW_T,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=T.INPUT,
-                BackgroundTransparency=0.82,
             })
-            cr(T.CORNER_SM,f)
+            cr(T.CORNER_S,f)
             fS.Transparency=0.65
+            pd(f,0,8)
 
-            pad(f,0,8)
             local b=Instance.new("TextBox",f)
             b.Size=UDim2.new(1,0,1,0)
             b.BackgroundTransparency=1
@@ -760,87 +588,73 @@ function LordHubLib.NewWindow(cfg)
                 end))
             end
             trackConn(b.Focused:Connect(function()
-                tw(f,{BackgroundTransparency=0.6},.15)
+                tw(f,{BackgroundTransparency=0.25},.15)
                 tw(fS,{Transparency=0.2,Color=ac},.15)
             end))
             trackConn(b.FocusLost:Connect(function()
-                tw(f,{BackgroundTransparency=0.82},.15)
-                tw(fS,{Transparency=0.65,Color=T.GLASS},.15)
+                tw(f,{BackgroundTransparency=T.ROW_T},.15)
+                tw(fS,{Transparency=0.65,Color=Color3.new(1,1,1)},.15)
                 if cb then cb(b.Text) end
             end))
             return b
         end
 
-        function api.Toggle(labelText, default, cb)
+        function api.Toggle(labelText,default,cb)
             default=default==true
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,28)
-            wrap.BackgroundTransparency=1
-            wrap.BorderSizePixel=0
-            wrap.LayoutOrder=rowN
-            pad(wrap,0,8)
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,28)
+            w.BackgroundTransparency=1
+            w.BorderSizePixel=0
+            w.LayoutOrder=rowN
+            pd(w,0,8)
 
-            -- Glass row
-            local f,fS=glassFrame(wrap,{
+            local f,fS=glass(w,T.ROW,0.55,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=T.GLASS_DARK,
-                BackgroundTransparency=0.65,
             })
-            cr(T.CORNER_SM,f)
-            fS.Transparency=0.75
+            cr(T.CORNER_S,f)
+            fS.Transparency=0.72
 
-            mkLabel(f,{
+            mkTxt(f,{
                 Size=UDim2.new(1,-52,1,0),
                 Position=UDim2.new(0,10,0,0),
                 Text=tostring(labelText),
-                TextColor3=T.TXT,
             })
 
-            -- Track
-            local track,trackS=glassFrame(f,{
-                Size=UDim2.new(0,36,0,20),
-                Position=UDim2.new(1,-44,0.5,-10),
-                BackgroundColor3=default and ac or T.GLASS_DARK,
-                BackgroundTransparency=default and 0.1 or 0.5,
+            local track,trS=glass(f,default and ac or T.ROW,
+                default and 0.1 or 0.55,{
+                Size=UDim2.new(0,34,0,18),
+                Position=UDim2.new(1,-42,0.5,-9),
             })
-            cr(10,track)
-            trackS.Transparency=0.5
+            cr(9,track)
+            trS.Transparency=0.6
 
-            -- Knob
             local knob=Instance.new("Frame",track)
-            knob.Size=UDim2.new(0,16,0,16)
-            knob.Position=default
-                and UDim2.new(1,-18,0.5,-8)
-                or  UDim2.new(0,2,0.5,-8)
-            knob.BackgroundColor3=T.TXT
+            knob.Size=UDim2.new(0,14,0,14)
+            knob.Position=default and UDim2.new(1,-16,0.5,-7)
+                or UDim2.new(0,2,0.5,-7)
+            knob.BackgroundColor3=Color3.new(1,1,1)
             knob.BorderSizePixel=0
-            cr(8,knob)
-            -- Knob shadow
-            local ks=Instance.new("UIStroke",knob)
-            ks.Color=Color3.new(0,0,0)
-            ks.Transparency=0.6
-            ks.Thickness=1
+            cr(7,knob)
 
             local on=default
-            local clickBtn=mkBtn(f,{
-                Size=UDim2.new(1,0,1,0),
-                Text="",
-            })
-            trackConn(clickBtn.MouseEnter:Connect(function()
-                tw(f,{BackgroundTransparency=0.45},.1)
+            local cb2=mkBtn(f,{Size=UDim2.new(1,0,1,0),Text=""})
+            trackConn(cb2.MouseEnter:Connect(function()
+                tw(f,{BackgroundTransparency=0.35},.1)
             end))
-            trackConn(clickBtn.MouseLeave:Connect(function()
-                tw(f,{BackgroundTransparency=0.65},.1)
+            trackConn(cb2.MouseLeave:Connect(function()
+                tw(f,{BackgroundTransparency=0.55},.1)
             end))
-            trackConn(clickBtn.MouseButton1Click:Connect(function()
+            trackConn(cb2.MouseButton1Click:Connect(function()
                 on=not on
                 if on then
                     tw(track,{BackgroundColor3=ac,BackgroundTransparency=0.1},.2)
-                    tw(knob,{Position=UDim2.new(1,-18,0.5,-8)},.2,Enum.EasingStyle.Back)
+                    tw(knob,{Position=UDim2.new(1,-16,0.5,-7)},
+                        .2,Enum.EasingStyle.Back)
                 else
-                    tw(track,{BackgroundColor3=T.GLASS_DARK,BackgroundTransparency=0.5},.2)
-                    tw(knob,{Position=UDim2.new(0,2,0.5,-8)},.2,Enum.EasingStyle.Back)
+                    tw(track,{BackgroundColor3=T.ROW,BackgroundTransparency=0.55},.2)
+                    tw(knob,{Position=UDim2.new(0,2,0.5,-7)},
+                        .2,Enum.EasingStyle.Back)
                 end
                 if cb then pcall(cb,on) end
             end))
@@ -848,56 +662,46 @@ function LordHubLib.NewWindow(cfg)
                 GetValue=function() return on end,
                 SetValue=function(v)
                     on=v==true
-                    track.BackgroundColor3=on and ac or T.GLASS_DARK
-                    track.BackgroundTransparency=on and 0.1 or 0.5
-                    knob.Position=on
-                        and UDim2.new(1,-18,0.5,-8)
-                        or  UDim2.new(0,2,0.5,-8)
+                    track.BackgroundColor3=on and ac or T.ROW
+                    track.BackgroundTransparency=on and 0.1 or 0.55
+                    knob.Position=on and UDim2.new(1,-16,0.5,-7)
+                        or UDim2.new(0,2,0.5,-7)
                 end,
             }
         end
 
-        function api.Dropdown(items, cb)
+        function api.Dropdown(items,cb)
             rowN=rowN+1
             local cur=items[1] or "Select"
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,30)
-            wrap.BackgroundTransparency=1
-            wrap.LayoutOrder=rowN
-            pad(wrap,3,8)
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,30)
+            w.BackgroundTransparency=1
+            w.LayoutOrder=rowN
+            pd(w,3,8)
 
-            local host,hostS=glassFrame(wrap,{
+            local host,hostS=glass(w,T.ROW,T.ROW_T,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=T.INPUT,
-                BackgroundTransparency=0.82,
             })
-            cr(T.CORNER_SM,host)
+            cr(T.CORNER_S,host)
 
-            local lbl2=mkLabel(host,{
-                Size=UDim2.new(1,-28,1,0),
+            local lbl2=mkTxt(host,{
+                Size=UDim2.new(1,-26,1,0),
                 Position=UDim2.new(0,10,0,0),
                 Text=tostring(cur),
-                TextColor3=T.TXT,
             })
-            local arr=mkLabel(host,{
-                Size=UDim2.new(0,22,1,0),
-                Position=UDim2.new(1,-24,0,0),
-                Text="▾",
-                TextColor3=T.MUT,
+            local arr=mkTxt(host,{
+                Size=UDim2.new(0,20,1,0),
+                Position=UDim2.new(1,-22,0,0),
+                Text="▾",TextColor3=T.MUT,
                 Font=Enum.Font.GothamBold,
                 TextXAlignment=Enum.TextXAlignment.Center,
             })
 
-            -- Popup (glass)
-            local popup,popupS=glassFrame(SG,{
-                BackgroundColor3=T.GLASS_DARK,
-                BackgroundTransparency=0.15,
-                ZIndex=150,
-                Visible=false,
+            local popup,popS=glass(SG,T.BG,0.15,{
+                ZIndex=150,Visible=false,
             })
-            cr(T.CORNER_SM,popup)
-            popupS.Color=ac
-            popupS.Transparency=0.5
+            cr(T.CORNER_S,popup)
+            popS.Color=ac; popS.Transparency=0.45
 
             local psl=Instance.new("ScrollingFrame",popup)
             psl.Size=UDim2.new(1,0,1,0)
@@ -910,15 +714,16 @@ function LordHubLib.NewWindow(cfg)
             local psll=Instance.new("UIListLayout",psl)
             psll.Padding=UDim.new(0,2)
             psll.SortOrder=Enum.SortOrder.LayoutOrder
-            pad(psl,4,5)
+            pd(psl,4,5)
             psll:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 psl.CanvasSize=UDim2.new(0,0,0,psll.AbsoluteContentSize.Y+10)
             end)
 
             local ddBtns={}
+
             local function closeDD()
                 tw(popup,{BackgroundTransparency=1},0.15)
-                task.delay(0.15,function()
+                task.delay(0.16,function()
                     popup.Visible=false
                     popup.BackgroundTransparency=0.15
                 end)
@@ -929,36 +734,28 @@ function LordHubLib.NewWindow(cfg)
                 for _,b in ipairs(ddBtns) do b:Destroy() end
                 ddBtns={}
                 for i,item in ipairs(newItems) do
-                    local ib,ibS=glassFrame(psl,{
+                    local ib,ibS=glass(psl,T.ROW,0.75,{
                         Size=UDim2.new(1,0,0,24),
-                        BackgroundColor3=T.GLASS,
-                        BackgroundTransparency=0.92,
-                        ZIndex=152,
-                        LayoutOrder=i,
+                        ZIndex=152,LayoutOrder=i,
                     })
-                    cr(T.CORNER_XS,ib)
-                    ibS.Transparency=0.85
+                    cr(T.CORNER_S,ib)
+                    ibS.Transparency=0.80
 
                     local ibb=mkBtn(ib,{
                         Size=UDim2.new(1,0,1,0),
                         Text=tostring(item),
-                        TextColor3=T.TXT,
-                        TextSize=11,
-                        ZIndex=153,
+                        TextSize=11,ZIndex=153,
                         TextXAlignment=Enum.TextXAlignment.Left,
                     })
-                    pad(ibb,0,8)
+                    pd(ibb,0,8)
                     trackConn(ibb.MouseEnter:Connect(function()
-                        tw(ib,{BackgroundTransparency=0.65},.1)
-                        tw(ibS,{Transparency=0.4},.1)
+                        tw(ib,{BackgroundTransparency=0.35},.1)
                     end))
                     trackConn(ibb.MouseLeave:Connect(function()
-                        tw(ib,{BackgroundTransparency=0.92},.1)
-                        tw(ibS,{Transparency=0.85},.1)
+                        tw(ib,{BackgroundTransparency=0.75},.1)
                     end))
                     trackConn(ibb.MouseButton1Click:Connect(function()
-                        cur=item
-                        lbl2.Text=tostring(item)
+                        cur=item; lbl2.Text=tostring(item)
                         closeDD()
                         if cb then cb(item) end
                     end))
@@ -968,15 +765,12 @@ function LordHubLib.NewWindow(cfg)
 
             buildList(items)
 
-            local hostBtn=mkBtn(host,{
-                Size=UDim2.new(1,0,1,0),
-                Text="",
-            })
+            local hostBtn=mkBtn(host,{Size=UDim2.new(1,0,1,0),Text=""})
             trackConn(hostBtn.MouseEnter:Connect(function()
-                tw(host,{BackgroundTransparency=0.6},.12)
+                tw(host,{BackgroundTransparency=0.25},.12)
             end))
             trackConn(hostBtn.MouseLeave:Connect(function()
-                tw(host,{BackgroundTransparency=0.82},.12)
+                tw(host,{BackgroundTransparency=T.ROW_T},.12)
             end))
             trackConn(hostBtn.MouseButton1Click:Connect(function()
                 if popup.Visible then closeDD(); return end
@@ -1008,25 +802,21 @@ function LordHubLib.NewWindow(cfg)
 
         function api.StatusBar(lines)
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,14+(lines or 1)*14)
-            wrap.BackgroundTransparency=1
-            wrap.LayoutOrder=rowN
-            pad(wrap,3,8)
-            local f,fS=glassFrame(wrap,{
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,14+(lines or 1)*14)
+            w.BackgroundTransparency=1
+            w.LayoutOrder=rowN
+            pd(w,3,8)
+            local f,fS=glass(w,T.HDR,0.40,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=T.GLASS_DARK,
-                BackgroundTransparency=0.55,
             })
-            cr(T.CORNER_SM,f)
-            fS.Transparency=0.75
-            pad(f,4,8)
-            local l=mkLabel(f,{
+            cr(T.CORNER_S,f)
+            fS.Transparency=0.72
+            pd(f,4,8)
+            local l=mkTxt(f,{
                 Size=UDim2.new(1,0,1,0),
-                Text="",
-                TextColor3=T.MUT,
-                TextSize=10,
-                TextWrapped=true,
+                Text="",TextColor3=T.MUT,
+                TextSize=10,TextWrapped=true,
                 TextYAlignment=Enum.TextYAlignment.Top,
             })
             return l
@@ -1034,39 +824,34 @@ function LordHubLib.NewWindow(cfg)
 
         function api.ProgressBar()
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,8)
-            wrap.BackgroundTransparency=1
-            wrap.LayoutOrder=rowN
-            pad(wrap,1,8)
-            local bg,bgS=glassFrame(wrap,{
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,8)
+            w.BackgroundTransparency=1
+            w.LayoutOrder=rowN
+            pd(w,1,8)
+            local bg,bgS=glass(w,T.ROW,0.40,{
                 Size=UDim2.new(1,0,1,0),
-                BackgroundColor3=T.GLASS_DARK,
-                BackgroundTransparency=0.45,
             })
-            cr(4,bg)
-            bgS.Transparency=0.8
+            cr(4,bg); bgS.Transparency=0.80
 
             local fill=Instance.new("Frame",bg)
             fill.Size=UDim2.new(0,0,1,0)
             fill.BackgroundColor3=ac
-            fill.BackgroundTransparency=0.1
+            fill.BackgroundTransparency=0.05
             fill.BorderSizePixel=0
             cr(4,fill)
 
-            -- Shimmer
-            local shimmer=Instance.new("Frame",fill)
-            shimmer.Size=UDim2.new(0,30,1,0)
-            shimmer.BackgroundColor3=T.TXT
-            shimmer.BackgroundTransparency=0.75
-            shimmer.BorderSizePixel=0
-            cr(4,shimmer)
+            local sh=Instance.new("Frame",fill)
+            sh.Size=UDim2.new(0,30,1,0)
+            sh.BackgroundColor3=Color3.new(1,1,1)
+            sh.BackgroundTransparency=0.72
+            sh.BorderSizePixel=0
+            cr(4,sh)
             task.spawn(function()
-                while shimmer.Parent do
-                    shimmer.Position=UDim2.new(0,-30,0,0)
-                    tw(shimmer,{Position=UDim2.new(1,0,0,0)},
-                        1.2,Enum.EasingStyle.Linear)
-                    task.wait(1.4)
+                while sh.Parent do
+                    sh.Position=UDim2.new(0,-30,0,0)
+                    tw(sh,{Position=UDim2.new(1,0,0,0)},1.3,Enum.EasingStyle.Linear)
+                    task.wait(1.5)
                 end
             end)
             return fill
@@ -1093,44 +878,39 @@ function LordHubLib.NewWindow(cfg)
                 for _,e in ipairs(entries) do e:Destroy() end
                 entries={}; selRow=nil
                 for i,item in ipairs(list) do
-                    local wrap=Instance.new("Frame",f)
-                    wrap.Size=UDim2.new(1,0,0,24)
-                    wrap.BackgroundTransparency=1
-                    wrap.BorderSizePixel=0
-                    wrap.LayoutOrder=i
-                    pad(wrap,0,8)
+                    local w2=Instance.new("Frame",f)
+                    w2.Size=UDim2.new(1,0,0,24)
+                    w2.BackgroundTransparency=1
+                    w2.BorderSizePixel=0
+                    w2.LayoutOrder=i
+                    pd(w2,0,8)
 
-                    local row,rowS=glassFrame(wrap,{
+                    local row,rowS=glass(w2,ac,0.78,{
                         Size=UDim2.new(1,0,1,0),
-                        BackgroundColor3=ac,
-                        BackgroundTransparency=0.80,
                     })
-                    cr(T.CORNER_XS,row)
-                    rowS.Transparency=0.7
+                    cr(T.CORNER_S,row)
+                    rowS.Transparency=0.65
 
-                    local rowBtn=mkBtn(row,{
+                    local rb=mkBtn(row,{
                         Size=UDim2.new(1,0,1,0),
-                        Text=tostring(item),
-                        TextColor3=T.TXT,
-                        TextSize=11,
+                        Text=tostring(item),TextSize=11,
                         TextXAlignment=Enum.TextXAlignment.Left,
                     })
-                    pad(rowBtn,0,10)
-
-                    trackConn(rowBtn.MouseEnter:Connect(function()
+                    pd(rb,0,10)
+                    trackConn(rb.MouseEnter:Connect(function()
                         if selRow~=row then
-                            tw(row,{BackgroundTransparency=0.55},.1)
+                            tw(row,{BackgroundTransparency=0.50},.1)
                         end
                     end))
-                    trackConn(rowBtn.MouseLeave:Connect(function()
+                    trackConn(rb.MouseLeave:Connect(function()
                         if selRow~=row then
-                            tw(row,{BackgroundTransparency=0.80},.1)
+                            tw(row,{BackgroundTransparency=0.78},.1)
                         end
                     end))
-                    trackConn(rowBtn.MouseButton1Click:Connect(function()
-                        if selRow then tw(selRow,{BackgroundTransparency=0.80},.1) end
+                    trackConn(rb.MouseButton1Click:Connect(function()
+                        if selRow then tw(selRow,{BackgroundTransparency=0.78},.1) end
                         selRow=row
-                        tw(row,{BackgroundTransparency=0.30},.15)
+                        tw(row,{BackgroundTransparency=0.25},.15)
                         if onSelCb then
                             onSelCb(item:match("^(.-)%s*$") or item)
                         end
@@ -1147,19 +927,17 @@ function LordHubLib.NewWindow(cfg)
 
         function api.NoteText(text)
             rowN=rowN+1
-            local wrap=Instance.new("Frame",scroll)
-            wrap.Size=UDim2.new(1,0,0,0)
-            wrap.BackgroundTransparency=1
-            wrap.BorderSizePixel=0
-            wrap.LayoutOrder=rowN
-            wrap.AutomaticSize=Enum.AutomaticSize.Y
-            pad(wrap,4,8)
-            local l=mkLabel(wrap,{
+            local w=Instance.new("Frame",scroll)
+            w.Size=UDim2.new(1,0,0,0)
+            w.BackgroundTransparency=1
+            w.BorderSizePixel=0
+            w.LayoutOrder=rowN
+            w.AutomaticSize=Enum.AutomaticSize.Y
+            pd(w,4,8)
+            local l=mkTxt(w,{
                 Size=UDim2.new(1,0,0,0),
-                Text=tostring(text),
-                TextColor3=T.MUT,
-                TextSize=10,
-                TextWrapped=true,
+                Text=tostring(text),TextColor3=T.MUT,
+                TextSize=10,TextWrapped=true,
                 AutomaticSize=Enum.AutomaticSize.Y,
             })
             return l
@@ -1168,43 +946,36 @@ function LordHubLib.NewWindow(cfg)
         return api
     end
 
-    -- ── AddTab ────────────────────────────────────────────────
-    local WIN_OBJ = {}
-    WIN_OBJ.WIN  = WIN
-    WIN_OBJ.SG   = SG
-    WIN_OBJ.Tabs = tabs
+    -- ── WIN объект ────────────────────────────────────────────
+    local WIN_OBJ={}
+    WIN_OBJ.WIN=WIN; WIN_OBJ.SG=SG; WIN_OBJ.Tabs=tabs
 
-    function WIN_OBJ.AddTab(tabName, tabLabel, tabOrder)
+    function WIN_OBJ.AddTab(tabName,tabLabel,tabOrder)
         tabCount=tabCount+1
 
-        -- Tab bg (glass pill)
-        local bg,bgS=glassFrame(TABBAR,{
-            BackgroundColor3=T.GLASS,
-            BackgroundTransparency=1,
-            ZIndex=4,
-            LayoutOrder=tabOrder or tabCount,
-        })
+        -- Tab кнопка
+        local tabWrap=Instance.new("Frame",TABBAR)
+        tabWrap.BackgroundTransparency=1
+        tabWrap.BorderSizePixel=0
+        tabWrap.LayoutOrder=tabOrder or tabCount
 
-        local btn=mkBtn(bg,{
+        local btn=mkBtn(tabWrap,{
             Size=UDim2.new(1,0,1,0),
             Text=tabLabel or tabName,
             TextColor3=T.MUT,
-            Font=Enum.Font.GothamBold,
             TextSize=10,
-            ZIndex=5,
+            ZIndex=4,
         })
 
-        -- Underline
-        local ul=Instance.new("Frame",bg)
+        local ul=Instance.new("Frame",tabWrap)
         ul.Size=UDim2.new(0.8,0,0,2)
         ul.Position=UDim2.new(0.1,0,1,-2)
         ul.BackgroundColor3=accent
         ul.BackgroundTransparency=1
         ul.BorderSizePixel=0
-        cr(1,ul)
 
-        local scr=makeScroll(CONTENT)
-        tabs[tabName]={btn=btn,scroll=scr,ul=ul,bg=bg}
+        local scr=makeScroll()
+        tabs[tabName]={btn=btn,scroll=scr,ul=ul,wrap=tabWrap}
 
         -- Пересчёт ширин
         local function recalc()
@@ -1212,7 +983,7 @@ function LordHubLib.NewWindow(cfg)
             for _ in pairs(tabs) do cnt=cnt+1 end
             local bw=math.floor(width/cnt)
             for _,t in pairs(tabs) do
-                t.bg.Size=UDim2.new(0,bw,1,0)
+                t.wrap.Size=UDim2.new(0,bw,1,0)
             end
         end
         recalc()
@@ -1220,13 +991,11 @@ function LordHubLib.NewWindow(cfg)
         trackConn(btn.MouseEnter:Connect(function()
             if activeTab~=tabName then
                 tw(btn,{TextColor3=T.TXT:Lerp(T.MUT,0.3)},.1)
-                tw(bg,{BackgroundTransparency=0.9},.1)
             end
         end))
         trackConn(btn.MouseLeave:Connect(function()
             if activeTab~=tabName then
                 tw(btn,{TextColor3=T.MUT},.1)
-                tw(bg,{BackgroundTransparency=1},.1)
             end
         end))
         trackConn(btn.MouseButton1Click:Connect(function()
@@ -1235,24 +1004,25 @@ function LordHubLib.NewWindow(cfg)
 
         if not activeTab then switchTab(tabName) end
 
-        local sapi=makeSectionAPI(scr, accent)
+        WIN_OBJ.Tabs=tabs
 
+        local sapi=makeSAPI(scr,accent)
+
+        -- TabAPI обёртка
         local tabAPI={}
-        function tabAPI.Section(sTitle, ac2)
-            sapi.SectionHeader(sTitle, ac2)
+        function tabAPI.Section(sTitle,ac2)
+            sapi.SectionHeader(sTitle,ac2)
             sapi.Space(2)
             return sapi
         end
         for k,v in pairs(sapi) do
             if not tabAPI[k] then tabAPI[k]=v end
         end
-
-        WIN_OBJ.Tabs=tabs
         return tabAPI
     end
 
-    function WIN_OBJ.AddHeaderButton(icon, col, cb)
-        local b=makeHdrBtn(icon, col)
+    function WIN_OBJ.AddHeaderButton(icon,col,cb)
+        local b=makeHBtn(icon,col)
         if cb then trackConn(b.MouseButton1Click:Connect(cb)) end
         return b
     end
@@ -1261,11 +1031,9 @@ function LordHubLib.NewWindow(cfg)
         if tabs[name] then switchTab(name) end
     end
 
-    function WIN_OBJ.Destroy()
-        SG:Destroy()
-    end
+    function WIN_OBJ.Destroy() SG:Destroy() end
 
-    -- Keybind INSERT
+    -- INSERT hide/show
     trackConn(UIS.InputBegan:Connect(function(i,gpe)
         if gpe then return end
         if i.KeyCode==Enum.KeyCode.Insert then
