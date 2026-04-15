@@ -1,6 +1,6 @@
 -- DEX Explorer v1.0 for Solara
--- Part 2: Explorer Panel (Instance Tree + Properties)
--- =====================================================
+-- Part 2: Explorer Panel (FIXED)
+-- ================================
 
 assert(getgenv().DEX, "DEX Core (Part 1) must be loaded first!")
 
@@ -12,16 +12,10 @@ local explorerPage = DEX.Pages["Explorer"]
 
 assert(explorerPage, "Explorer page not found!")
 
--- ========================
--- CONSTANTS
--- ========================
 local NODE_HEIGHT = 22
 local INDENT_WIDTH = 16
 local MAX_VISIBLE_NODES = 200
 
--- ========================
--- EXPLORER STATE
--- ========================
 local ExpState = {
     AllNodes = {},
     VisibleNodes = {},
@@ -31,7 +25,6 @@ local ExpState = {
     SearchQuery = "",
     ClassFilter = "",
     TotalNodes = 0,
-    NeedsRebuild = false,
     PropTarget = nil,
     PropList = {},
 }
@@ -39,12 +32,12 @@ local ExpState = {
 DEX.ExpState = ExpState
 
 -- ========================
--- LAYOUT: LEFT (tree) + RIGHT (props)
+-- LAYOUT: 55% left + 45% right
 -- ========================
 local leftPanel = GuiHelpers.Create("Frame", {
     Name = "LeftPanel",
     Parent = explorerPage,
-    Size = UDim2.new(0.52, -1, 1, 0),
+    Size = UDim2.new(0.55, -1, 1, 0),
     Position = UDim2.new(0, 0, 0, 0),
     BackgroundColor3 = theme.BackgroundTertiary,
     BorderSizePixel = 0,
@@ -56,7 +49,7 @@ local divider = GuiHelpers.Create("Frame", {
     Name = "Divider",
     Parent = explorerPage,
     Size = UDim2.new(0, 2, 1, 0),
-    Position = UDim2.new(0.52, -1, 0, 0),
+    Position = UDim2.new(0.55, -1, 0, 0),
     BackgroundColor3 = theme.Border,
     BorderSizePixel = 0,
     ZIndex = 9,
@@ -65,8 +58,8 @@ local divider = GuiHelpers.Create("Frame", {
 local rightPanel = GuiHelpers.Create("Frame", {
     Name = "RightPanel",
     Parent = explorerPage,
-    Size = UDim2.new(0.48, -1, 1, 0),
-    Position = UDim2.new(0.52, 2, 0, 0),
+    Size = UDim2.new(0.45, -1, 1, 0),
+    Position = UDim2.new(0.55, 2, 0, 0),
     BackgroundColor3 = theme.Background,
     BorderSizePixel = 0,
     ZIndex = 8,
@@ -74,7 +67,7 @@ local rightPanel = GuiHelpers.Create("Frame", {
 })
 
 -- ========================
--- SEARCH BAR (left)
+-- SEARCH BAR
 -- ========================
 local searchBar = GuiHelpers.Create("Frame", {
     Name = "SearchBar",
@@ -102,17 +95,15 @@ local searchBox = GuiHelpers.Create("TextBox", {
     ClearTextOnFocus = false,
     ZIndex = 10,
 })
-
 pcall(function()
-    local sbCorner = Instance.new("UICorner")
-    sbCorner.CornerRadius = UDim.new(0, 4)
-    sbCorner.Parent = searchBox
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 4)
+    c.Parent = searchBox
 end)
-
 pcall(function()
-    local sbPad = Instance.new("UIPadding")
-    sbPad.PaddingLeft = UDim.new(0, 6)
-    sbPad.Parent = searchBox
+    local p = Instance.new("UIPadding")
+    p.PaddingLeft = UDim.new(0, 6)
+    p.Parent = searchBox
 end)
 
 local classFilterBox = GuiHelpers.Create("TextBox", {
@@ -131,20 +122,17 @@ local classFilterBox = GuiHelpers.Create("TextBox", {
     ClearTextOnFocus = false,
     ZIndex = 10,
 })
-
 pcall(function()
-    local cfCorner = Instance.new("UICorner")
-    cfCorner.CornerRadius = UDim.new(0, 4)
-    cfCorner.Parent = classFilterBox
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 4)
+    c.Parent = classFilterBox
+end)
+pcall(function()
+    local p = Instance.new("UIPadding")
+    p.PaddingLeft = UDim.new(0, 6)
+    p.Parent = classFilterBox
 end)
 
-pcall(function()
-    local cfPad = Instance.new("UIPadding")
-    cfPad.PaddingLeft = UDim.new(0, 6)
-    cfPad.Parent = classFilterBox
-end)
-
--- Refresh button
 local refreshBtn = GuiHelpers.Create("TextButton", {
     Name = "RefreshBtn",
     Parent = leftPanel,
@@ -159,14 +147,12 @@ local refreshBtn = GuiHelpers.Create("TextButton", {
     BorderSizePixel = 0,
     ZIndex = 9,
 })
-
 pcall(function()
-    local rbCorner = Instance.new("UICorner")
-    rbCorner.CornerRadius = UDim.new(0, 4)
-    rbCorner.Parent = refreshBtn
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 4)
+    c.Parent = refreshBtn
 end)
 
--- Node count label
 local nodeCountLabel = GuiHelpers.Create("TextLabel", {
     Name = "NodeCount",
     Parent = leftPanel,
@@ -182,7 +168,7 @@ local nodeCountLabel = GuiHelpers.Create("TextLabel", {
 })
 
 -- ========================
--- TREE SCROLL FRAME
+-- TREE CONTAINER
 -- ========================
 local treeContainer = GuiHelpers.Create("Frame", {
     Name = "TreeContainer",
@@ -195,7 +181,6 @@ local treeContainer = GuiHelpers.Create("Frame", {
     ClipsDescendants = true,
 })
 
--- Virtual scroll: we render only visible nodes
 local treeCanvas = GuiHelpers.Create("Frame", {
     Name = "TreeCanvas",
     Parent = treeContainer,
@@ -206,7 +191,6 @@ local treeCanvas = GuiHelpers.Create("Frame", {
     ZIndex = 8,
 })
 
--- Scrollbar
 local scrollTrack = GuiHelpers.Create("Frame", {
     Name = "ScrollTrack",
     Parent = treeContainer,
@@ -226,18 +210,15 @@ local scrollThumb = GuiHelpers.Create("Frame", {
     BorderSizePixel = 0,
     ZIndex = 11,
 })
-
 pcall(function()
-    local stCorner = Instance.new("UICorner")
-    stCorner.CornerRadius = UDim.new(0, 3)
-    stCorner.Parent = scrollThumb
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 3)
+    c.Parent = scrollThumb
 end)
 
 -- ========================
--- NODE DATA STRUCTURE
+-- BUILD NODE LIST
 -- ========================
--- Node = { instance, depth, isExpanded, hasChildren, parentNode }
-
 local function BuildNodeList()
     local nodes = {}
     local expanded = ExpState.ExpandedMap
@@ -246,14 +227,13 @@ local function BuildNodeList()
 
     local function Traverse(inst, depth)
         if depth > 60 then return end
-
         local ok, children = pcall(function()
             return inst:GetChildren()
         end)
         if not ok then return end
 
         for _, child in ipairs(children) do
-            local childOk = pcall(function()
+            pcall(function()
                 local name = string.lower(Utils.GetInstanceName(child))
                 local cls = string.lower(Utils.GetClassName(child))
 
@@ -292,19 +272,20 @@ local function BuildNodeList()
         end
     end
 
+    local gameChildCount = 0
+    pcall(function()
+        gameChildCount = #game:GetChildren()
+    end)
+
     local gameNode = {
         instance = game,
         depth = 0,
         isExpanded = expanded[game] == true,
         hasChildren = true,
-        childCount = 0,
+        childCount = gameChildCount,
         name = "game",
         className = "DataModel",
     }
-    pcall(function()
-        local gc = game:GetChildren()
-        gameNode.childCount = #gc
-    end)
     table.insert(nodes, gameNode)
 
     if expanded[game] then
@@ -317,7 +298,7 @@ local function BuildNodeList()
 end
 
 -- ========================
--- NODE RENDERING (virtual)
+-- RENDER TREE
 -- ========================
 local renderedRows = {}
 
@@ -325,7 +306,7 @@ local function GetContainerHeight()
     local ok, h = pcall(function()
         return treeContainer.AbsoluteSize.Y
     end)
-    if ok then return h end
+    if ok and h > 0 then return h end
     return 400
 end
 
@@ -345,7 +326,9 @@ local function UpdateScrollThumb()
         local maxOffset = total - visibleCount
         local thumbPos = 0
         if maxOffset > 0 then
-            thumbPos = math.floor((ExpState.ScrollOffset / maxOffset) * (containerH - thumbH))
+            thumbPos = math.floor(
+                (ExpState.ScrollOffset / maxOffset) * (containerH - thumbH)
+            )
         end
         scrollThumb.Size = UDim2.new(1, 0, 0, thumbH)
         scrollThumb.Position = UDim2.new(0, 0, 0, thumbPos)
@@ -354,19 +337,20 @@ end
 
 local function ClearRenderedRows()
     for _, row in ipairs(renderedRows) do
-        pcall(function()
-            row:Destroy()
-        end)
+        pcall(function() row:Destroy() end)
     end
     renderedRows = {}
 end
+
+-- Forward declare LoadProperties
+local LoadProperties
 
 local function RenderTree()
     pcall(function()
         ClearRenderedRows()
         local containerH = GetContainerHeight()
         local visibleCount = math.min(
-            math.ceil(containerH / NODE_HEIGHT) + 2,
+            math.ceil(containerH / NODE_HEIGHT) + 4,
             MAX_VISIBLE_NODES
         )
         local total = #ExpState.AllNodes
@@ -379,37 +363,35 @@ local function RenderTree()
             local node = ExpState.AllNodes[i]
             if not node then break end
 
-            local rowY = (i - 1) * NODE_HEIGHT - ExpState.ScrollOffset * NODE_HEIGHT
+            local rowY = (i - 1) * NODE_HEIGHT -
+                ExpState.ScrollOffset * NODE_HEIGHT
             local indentX = node.depth * INDENT_WIDTH + 4
+
+            local isSelected = ExpState.SelectedNode and
+                ExpState.SelectedNode.instance == node.instance
 
             local row = GuiHelpers.Create("Frame", {
                 Name = "Node" .. i,
                 Parent = treeCanvas,
                 Size = UDim2.new(1, -6, 0, NODE_HEIGHT),
                 Position = UDim2.new(0, 0, 0, rowY),
-                BackgroundTransparency = 1,
+                BackgroundColor3 = isSelected
+                    and theme.NodeSelected
+                    or theme.BackgroundTertiary,
+                BackgroundTransparency = isSelected and 0 or 1,
                 BorderSizePixel = 0,
                 ZIndex = 8,
             })
 
-            -- Selection highlight
-            local isSelected = ExpState.SelectedNode and
-                ExpState.SelectedNode.instance == node.instance
-
-            if isSelected then
-                row.BackgroundColor3 = theme.NodeSelected
-                row.BackgroundTransparency = 0
-            end
-
-            -- Expand arrow
             if node.hasChildren then
+                local arrowText = node.isExpanded and "v" or ">"
                 local arrow = GuiHelpers.Create("TextButton", {
                     Name = "Arrow",
                     Parent = row,
                     Size = UDim2.new(0, 14, 0, 14),
                     Position = UDim2.new(0, indentX, 0, 4),
                     BackgroundTransparency = 1,
-                    Text = node.isExpanded and "v" or ">",
+                    Text = arrowText,
                     TextColor3 = theme.TextSecondary,
                     TextSize = 9,
                     Font = Enum.Font.GothamBold,
@@ -421,16 +403,20 @@ local function RenderTree()
                 arrow.MouseButton1Click:Connect(function()
                     pcall(function()
                         local inst = nodeRef.instance
-                        ExpState.ExpandedMap[inst] = not ExpState.ExpandedMap[inst]
+                        if ExpState.ExpandedMap[inst] then
+                            ExpState.ExpandedMap[inst] = false
+                        else
+                            ExpState.ExpandedMap[inst] = true
+                        end
                         BuildNodeList()
                         RenderTree()
                     end)
                 end)
             end
 
-            -- Class icon badge
             local iconX = indentX + (node.hasChildren and 16 or 0)
             local clsIcon = Utils.GetClassIcon(node.className)
+
             local iconBg = GuiHelpers.Create("TextLabel", {
                 Name = "Icon",
                 Parent = row,
@@ -445,12 +431,11 @@ local function RenderTree()
                 ZIndex = 9,
             })
             pcall(function()
-                local iconCorner = Instance.new("UICorner")
-                iconCorner.CornerRadius = UDim.new(0, 3)
-                iconCorner.Parent = iconBg
+                local c = Instance.new("UICorner")
+                c.CornerRadius = UDim.new(0, 3)
+                c.Parent = iconBg
             end)
 
-            -- Instance name
             local nameX = iconX + 22
             local displayName = Utils.Truncate(node.name, 32)
             if node.childCount > 0 then
@@ -464,7 +449,8 @@ local function RenderTree()
                 Position = UDim2.new(0, nameX, 0, 0),
                 BackgroundTransparency = 1,
                 Text = displayName,
-                TextColor3 = isSelected and Color3.new(1, 1, 1) or theme.Text,
+                TextColor3 = isSelected
+                    and Color3.new(1, 1, 1) or theme.Text,
                 TextSize = 11,
                 Font = Enum.Font.Gotham,
                 TextXAlignment = Enum.TextXAlignment.Left,
@@ -472,14 +458,14 @@ local function RenderTree()
                 ZIndex = 9,
             })
 
-            -- Hover effect on row
             local capturedNode = node
             local capturedRow = row
 
             nameLabel.MouseEnter:Connect(function()
                 pcall(function()
                     if ExpState.SelectedNode and
-                        ExpState.SelectedNode.instance == capturedNode.instance then
+                        ExpState.SelectedNode.instance ==
+                        capturedNode.instance then
                         return
                     end
                     capturedRow.BackgroundColor3 = theme.NodeHover
@@ -490,38 +476,42 @@ local function RenderTree()
             nameLabel.MouseLeave:Connect(function()
                 pcall(function()
                     if ExpState.SelectedNode and
-                        ExpState.SelectedNode.instance == capturedNode.instance then
+                        ExpState.SelectedNode.instance ==
+                        capturedNode.instance then
                         return
                     end
                     capturedRow.BackgroundTransparency = 1
                 end)
             end)
 
-            -- Left click: select
             nameLabel.MouseButton1Click:Connect(function()
                 pcall(function()
                     ExpState.SelectedNode = capturedNode
                     DEX.State.SelectedInstance = capturedNode.instance
                     RenderTree()
-                    LoadProperties(capturedNode.instance)
+                    if LoadProperties then
+                        LoadProperties(capturedNode.instance)
+                    end
                 end)
             end)
 
-            -- Right click: context menu
             nameLabel.MouseButton2Click:Connect(function()
                 pcall(function()
-                    local mousePos = UserInputService:GetMouseLocation()
+                    local UserInputSvc = game:GetService("UserInputService")
+                    local mousePos = UserInputSvc:GetMouseLocation()
                     local inst = capturedNode.instance
                     local instPath = Utils.GetFullPath(inst)
                     local instName = Utils.GetInstanceName(inst)
 
-                    local menuItems = {
+                    DEX.ShowContextMenu({
                         {
                             label = "Copy Path",
                             callback = function()
                                 pcall(function()
                                     setclipboard(instPath)
-                                    DEX.ShowNotification("Copied", instPath, "success")
+                                    DEX.ShowNotification(
+                                        "Copied", instPath, "success"
+                                    )
                                 end)
                             end
                         },
@@ -530,7 +520,9 @@ local function RenderTree()
                             callback = function()
                                 pcall(function()
                                     setclipboard(instName)
-                                    DEX.ShowNotification("Copied", instName, "success")
+                                    DEX.ShowNotification(
+                                        "Copied", instName, "success"
+                                    )
                                 end)
                             end
                         },
@@ -539,13 +531,16 @@ local function RenderTree()
                             callback = function()
                                 pcall(function()
                                     setclipboard(capturedNode.className)
-                                    DEX.ShowNotification("Copied",
-                                        capturedNode.className, "success")
+                                    DEX.ShowNotification(
+                                        "Copied",
+                                        capturedNode.className,
+                                        "success"
+                                    )
                                 end)
                             end
                         },
                         {
-                            label = "Expand All Children",
+                            label = "Expand All",
                             callback = function()
                                 pcall(function()
                                     local function ExpandAll(target)
@@ -577,7 +572,7 @@ local function RenderTree()
                             end
                         },
                         {
-                            label = "Delete Instance",
+                            label = "Delete",
                             color = theme.Error,
                             callback = function()
                                 pcall(function()
@@ -585,27 +580,13 @@ local function RenderTree()
                                     ExpState.SelectedNode = nil
                                     BuildNodeList()
                                     RenderTree()
-                                    DEX.ShowNotification("Deleted",
-                                        instName .. " removed", "warning")
+                                    DEX.ShowNotification(
+                                        "Deleted", instName, "warning"
+                                    )
                                 end)
                             end
                         },
-                        {
-                            label = "Print to Console",
-                            callback = function()
-                                pcall(function()
-                                    print("[DEX] " .. instPath ..
-                                        " [" .. capturedNode.className .. "]")
-                                    DEX.ShowNotification("Printed",
-                                        instName, "info")
-                                end)
-                            end
-                        },
-                    }
-
-                    DEX.ShowContextMenu(menuItems,
-                        mousePos.X,
-                        mousePos.Y)
+                    }, mousePos.X, mousePos.Y)
                 end)
             end)
 
@@ -617,7 +598,7 @@ local function RenderTree()
 end
 
 -- ========================
--- SCROLL HANDLING
+-- SCROLL
 -- ========================
 treeContainer.InputChanged:Connect(function(input)
     pcall(function()
@@ -637,10 +618,11 @@ treeContainer.InputChanged:Connect(function(input)
     end)
 end)
 
--- Scrollbar drag
 local scrollDragging = false
 local scrollDragStartY = 0
 local scrollDragStartOffset = 0
+
+local UserInputSvc = game:GetService("UserInputService")
 
 scrollThumb.InputBegan:Connect(function(input)
     pcall(function()
@@ -652,7 +634,7 @@ scrollThumb.InputBegan:Connect(function(input)
     end)
 end)
 
-UserInputService.InputChanged:Connect(function(input)
+UserInputSvc.InputChanged:Connect(function(input)
     pcall(function()
         if scrollDragging and
             input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -672,7 +654,7 @@ UserInputService.InputChanged:Connect(function(input)
     end)
 end)
 
-UserInputService.InputEnded:Connect(function(input)
+UserInputSvc.InputEnded:Connect(function(input)
     pcall(function()
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             scrollDragging = false
@@ -681,7 +663,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ========================
--- SEARCH & FILTER
+-- SEARCH
 -- ========================
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     pcall(function()
@@ -709,11 +691,10 @@ refreshBtn.MouseButton1Click:Connect(function()
         DEX.ShowNotification("Explorer", "Tree refreshed", "info")
     end)
 end)
-
 GuiHelpers.AddHover(refreshBtn, theme.ButtonBg, theme.ButtonHover)
 
 -- ========================
--- PROPERTIES PANEL (right)
+-- PROPERTIES PANEL
 -- ========================
 local propHeader = GuiHelpers.Create("Frame", {
     Name = "PropHeader",
@@ -755,20 +736,17 @@ local propSearchBox = GuiHelpers.Create("TextBox", {
     ClearTextOnFocus = false,
     ZIndex = 10,
 })
-
 pcall(function()
-    local psCorner = Instance.new("UICorner")
-    psCorner.CornerRadius = UDim.new(0, 4)
-    psCorner.Parent = propSearchBox
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 4)
+    c.Parent = propSearchBox
+end)
+pcall(function()
+    local p = Instance.new("UIPadding")
+    p.PaddingLeft = UDim.new(0, 6)
+    p.Parent = propSearchBox
 end)
 
-pcall(function()
-    local psPad = Instance.new("UIPadding")
-    psPad.PaddingLeft = UDim.new(0, 6)
-    psPad.Parent = propSearchBox
-end)
-
--- Property scroll
 local propScroll = GuiHelpers.Create("ScrollingFrame", {
     Name = "PropScroll",
     Parent = rightPanel,
@@ -790,136 +768,87 @@ local propLayout = GuiHelpers.Create("UIListLayout", {
     Padding = UDim.new(0, 1),
 })
 
--- Known properties to display per class
+-- ========================
+-- PROPERTIES DATA
+-- ========================
 local COMMON_PROPS = {
     "Name", "ClassName", "Parent", "Archivable",
 }
-local PART_PROPS = {
-    "Position", "Size", "Rotation", "Anchored",
-    "CanCollide", "Transparency", "BrickColor",
-    "Material", "CastShadow", "Locked",
-    "Massless", "CFrame",
-}
-local GUI_PROPS = {
-    "Size", "Position", "BackgroundColor3",
-    "BackgroundTransparency", "Text", "TextColor3",
-    "TextSize", "Font", "Visible", "ZIndex",
-    "BorderSizePixel", "ClipsDescendants",
-}
-local HUMANOID_PROPS = {
-    "Health", "MaxHealth", "WalkSpeed",
-    "JumpPower", "AutoRotate", "DisplayName",
-    "NameDisplayDistance", "HealthDisplayType",
-}
-local SCRIPT_PROPS = {
-    "Disabled", "RunContext",
-}
-local SOUND_PROPS = {
-    "SoundId", "Volume", "Playing",
-    "Looped", "Pitch", "TimePosition",
-}
-local LIGHT_PROPS = {
-    "Brightness", "Color", "Enabled", "Range",
-    "Shadows",
-}
 
-local CLASS_PROP_MAP = {
-    ["Part"] = PART_PROPS,
-    ["MeshPart"] = PART_PROPS,
-    ["UnionOperation"] = PART_PROPS,
-    ["SpecialMesh"] = {"MeshType", "Scale", "Offset"},
-    ["Humanoid"] = HUMANOID_PROPS,
-    ["Frame"] = GUI_PROPS,
-    ["TextLabel"] = GUI_PROPS,
-    ["TextButton"] = GUI_PROPS,
-    ["TextBox"] = GUI_PROPS,
-    ["ImageLabel"] = GUI_PROPS,
-    ["ImageButton"] = GUI_PROPS,
-    ["ScreenGui"] = {"Enabled", "ZIndexBehavior", "DisplayOrder"},
-    ["Script"] = SCRIPT_PROPS,
-    ["LocalScript"] = SCRIPT_PROPS,
-    ["ModuleScript"] = {},
-    ["Sound"] = SOUND_PROPS,
-    ["PointLight"] = LIGHT_PROPS,
-    ["SpotLight"] = LIGHT_PROPS,
-    ["SurfaceLight"] = LIGHT_PROPS,
-    ["Camera"] = {"CFrame", "FieldOfView", "CameraType"},
-    ["RemoteEvent"] = {},
-    ["RemoteFunction"] = {},
-    ["Folder"] = {},
-    ["Model"] = {"PrimaryPart", "WorldPivot"},
-    ["Tool"] = {"Enabled", "CanBeDropped", "RequiresHandle", "ToolTip"},
+local EXTRA_PROPS = {
+    "Position", "Size", "Rotation", "Anchored",
+    "CanCollide", "Transparency", "Visible",
+    "Enabled", "Locked", "CFrame",
+    "Health", "MaxHealth", "WalkSpeed", "JumpPower",
+    "Text", "TextColor3", "BackgroundColor3",
+    "ZIndex", "Font", "TextSize",
+    "SoundId", "Volume", "Playing",
+    "Disabled", "RunContext",
 }
 
 local function ValueToString(val)
     local t = typeof(val)
-    if t == "nil" then
-        return "nil"
-    elseif t == "boolean" then
-        return tostring(val)
-    elseif t == "number" then
+    if t == "nil" then return "nil" end
+    if t == "boolean" then return tostring(val) end
+    if t == "number" then
         return string.format("%.4g", val)
-    elseif t == "string" then
+    end
+    if t == "string" then
         return '"' .. Utils.Truncate(val, 40) .. '"'
-    elseif t == "Vector3" then
-        return string.format("(%.2f, %.2f, %.2f)", val.X, val.Y, val.Z)
-    elseif t == "Vector2" then
+    end
+    if t == "Vector3" then
+        return string.format("(%.2f, %.2f, %.2f)",
+            val.X, val.Y, val.Z)
+    end
+    if t == "Vector2" then
         return string.format("(%.2f, %.2f)", val.X, val.Y)
-    elseif t == "CFrame" then
+    end
+    if t == "CFrame" then
         local p = val.Position
-        return string.format("CF(%.1f, %.1f, %.1f)", p.X, p.Y, p.Z)
-    elseif t == "Color3" then
-        local r = math.floor(val.R * 255)
-        local g = math.floor(val.G * 255)
-        local b = math.floor(val.B * 255)
-        return string.format("RGB(%d,%d,%d)", r, g, b)
-    elseif t == "BrickColor" then
-        return tostring(val)
-    elseif t == "UDim2" then
+        return string.format("CF(%.1f, %.1f, %.1f)",
+            p.X, p.Y, p.Z)
+    end
+    if t == "Color3" then
+        return string.format("RGB(%d,%d,%d)",
+            math.floor(val.R*255),
+            math.floor(val.G*255),
+            math.floor(val.B*255))
+    end
+    if t == "BrickColor" then return tostring(val) end
+    if t == "UDim2" then
         return string.format("{%.2f,%d},{%.2f,%d}",
             val.X.Scale, val.X.Offset,
             val.Y.Scale, val.Y.Offset)
-    elseif t == "UDim" then
-        return string.format("%.2f, %d", val.Scale, val.Offset)
-    elseif t == "Instance" then
+    end
+    if t == "Instance" then
         if val then
             return Utils.GetInstanceName(val) ..
                 " [" .. Utils.GetClassName(val) .. "]"
         end
         return "nil"
-    elseif t == "EnumItem" then
-        return tostring(val)
-    elseif t == "Rect" then
-        return string.format("Rect(%.0f,%.0f,%.0f,%.0f)",
-            val.Min.X, val.Min.Y, val.Max.X, val.Max.Y)
     end
+    if t == "EnumItem" then return tostring(val) end
     return tostring(val)
 end
 
-local propFilterQuery = ""
-
-local function GetColorForValue(val)
+local function GetValueColor(val)
     local t = typeof(val)
     if t == "boolean" then
         if val then return theme.Success end
         return theme.Error
-    elseif t == "number" then
-        return theme.SyntaxNumber
-    elseif t == "string" then
-        return theme.SyntaxString
-    elseif t == "Color3" then
-        return val
-    elseif t == "Instance" then
-        return theme.Accent
     end
+    if t == "number" then return theme.SyntaxNumber end
+    if t == "string" then return theme.SyntaxString end
+    if t == "Color3" then return val end
+    if t == "Instance" then return theme.Accent end
     return theme.TextSecondary
 end
 
-function LoadProperties(instance)
-    if not instance then return end
+local propFilterQuery = ""
 
+LoadProperties = function(instance)
+    if not instance then return end
     pcall(function()
-        -- Clear old rows
         for _, child in ipairs(propScroll:GetChildren()) do
             pcall(function()
                 if child:IsA("Frame") or child:IsA("TextLabel") then
@@ -932,54 +861,33 @@ function LoadProperties(instance)
         local className = Utils.GetClassName(instance)
         propTitle.Text = instName .. " [" .. className .. "]"
 
-        -- Build prop list
         local propsToShow = {}
         for _, p in ipairs(COMMON_PROPS) do
             table.insert(propsToShow, p)
         end
-
-        local classPropList = CLASS_PROP_MAP[className]
-        if classPropList then
-            for _, p in ipairs(classPropList) do
-                table.insert(propsToShow, p)
-            end
-        end
-
-        -- Extra scan: try common extra props
-        local extraProps = {
-            "Enabled", "Visible", "Locked", "Anchored",
-            "CanCollide", "Transparency", "Reflectance",
-            "Mass", "AssemblyMass",
-        }
-        for _, ep in ipairs(extraProps) do
-            local already = false
-            for _, existing in ipairs(propsToShow) do
-                if existing == ep then
-                    already = true
-                    break
-                end
-            end
-            if not already then
-                table.insert(propsToShow, ep)
-            end
+        for _, p in ipairs(EXTRA_PROPS) do
+            table.insert(propsToShow, p)
         end
 
         local rowIndex = 0
+        local filterQ = string.lower(propFilterQuery)
+
         for _, propName in ipairs(propsToShow) do
-            local filterQ = string.lower(propFilterQuery)
             local propLower = string.lower(propName)
-            if filterQ ~= "" and not string.find(propLower, filterQ, 1, true) then
-                -- skip filtered
-            else
+            local matchFilter = filterQ == "" or
+                string.find(propLower, filterQ, 1, true)
+
+            if matchFilter then
                 local ok, val = pcall(function()
                     return instance[propName]
                 end)
 
                 local displayVal = ok and ValueToString(val) or "N/A"
-                local valColor = ok and GetColorForValue(val) or theme.TextDisabled
+                local valColor = ok
+                    and GetValueColor(val) or theme.TextDisabled
 
                 rowIndex = rowIndex + 1
-                local rowBg = (rowIndex % 2 == 0)
+                local rowBg = rowIndex % 2 == 0
                     and theme.BackgroundSecondary
                     or theme.Background
 
@@ -988,13 +896,12 @@ function LoadProperties(instance)
                     Parent = propScroll,
                     Size = UDim2.new(1, 0, 0, 20),
                     BackgroundColor3 = rowBg,
-                    BackgroundTransparency = 0,
                     BorderSizePixel = 0,
                     ZIndex = 9,
                     LayoutOrder = rowIndex,
                 })
 
-                local propNameLabel = GuiHelpers.Create("TextLabel", {
+                GuiHelpers.Create("TextLabel", {
                     Parent = propRow,
                     Size = UDim2.new(0.45, 0, 1, 0),
                     Position = UDim2.new(0, 4, 0, 0),
@@ -1007,7 +914,6 @@ function LoadProperties(instance)
                     ZIndex = 10,
                 })
 
-                -- Color swatch for Color3 values
                 if ok and typeof(val) == "Color3" then
                     local swatch = GuiHelpers.Create("Frame", {
                         Parent = propRow,
@@ -1018,13 +924,13 @@ function LoadProperties(instance)
                         ZIndex = 10,
                     })
                     pcall(function()
-                        local swCorner = Instance.new("UICorner")
-                        swCorner.CornerRadius = UDim.new(0, 2)
-                        swCorner.Parent = swatch
+                        local c = Instance.new("UICorner")
+                        c.CornerRadius = UDim.new(0, 2)
+                        c.Parent = swatch
                     end)
                 end
 
-                local propValLabel = GuiHelpers.Create("TextButton", {
+                local valBtn = GuiHelpers.Create("TextButton", {
                     Parent = propRow,
                     Size = UDim2.new(0.55, -20, 1, 0),
                     Position = UDim2.new(0.45, 16, 0, 0),
@@ -1038,30 +944,27 @@ function LoadProperties(instance)
                     ZIndex = 10,
                 })
 
-                -- Copy value on click
-                local capturedPropName = propName
-                local capturedDisplayVal = displayVal
-                propValLabel.MouseButton1Click:Connect(function()
+                local capProp = propName
+                local capVal = displayVal
+                valBtn.MouseButton1Click:Connect(function()
                     pcall(function()
-                        setclipboard(capturedPropName .. " = " .. capturedDisplayVal)
-                        DEX.ShowNotification("Copied",
-                            capturedPropName .. " = " .. capturedDisplayVal, "success")
+                        setclipboard(capProp .. " = " .. capVal)
+                        DEX.ShowNotification(
+                            "Copied",
+                            capProp .. " = " .. capVal,
+                            "success"
+                        )
                     end)
                 end)
-
-                GuiHelpers.AddHover(propValLabel, rowBg, theme.NodeHover)
             end
         end
 
-        -- Update canvas size
-        local totalH = rowIndex * 21
-        propScroll.CanvasSize = UDim2.new(0, 0, 0, totalH)
+        propScroll.CanvasSize = UDim2.new(0, 0, 0, rowIndex * 21)
     end)
 end
 
 DEX.LoadProperties = LoadProperties
 
--- Property search
 propSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     pcall(function()
         propFilterQuery = propSearchBox.Text
@@ -1072,19 +975,32 @@ propSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ========================
--- AUTO-REFRESH on tab switch
+-- INITIAL LOAD
 -- ========================
-local explorerLoaded = false
+task.spawn(function()
+    pcall(function()
+        task.wait(0.5)
+        ExpState.ExpandedMap[game] = true
+        BuildNodeList()
+        RenderTree()
+        DEX.StatusText.Text = "Explorer | " ..
+            ExpState.TotalNodes .. " nodes"
+        DEX.ShowNotification(
+            "Explorer",
+            "Tree loaded: " .. ExpState.TotalNodes .. " nodes",
+            "success"
+        )
+    end)
+end)
 
-local originalSwitchTab = DEX.SwitchTab
+-- Tab switch handler
+local origSwitch = DEX.SwitchTab
 DEX.SwitchTab = function(tabName)
-    originalSwitchTab(tabName)
-    if tabName == "Explorer" and not explorerLoaded then
-        explorerLoaded = true
+    origSwitch(tabName)
+    if tabName == "Explorer" then
         task.spawn(function()
             pcall(function()
                 task.wait(0.1)
-                ExpState.ExpandedMap[game] = true
                 BuildNodeList()
                 RenderTree()
             end)
@@ -1092,7 +1008,6 @@ DEX.SwitchTab = function(tabName)
     end
 end
 
--- Update tab buttons to use new SwitchTab
 for _, tabName in ipairs(DEX.Tabs) do
     pcall(function()
         local btn = DEX.TabButtons[tabName]
@@ -1104,21 +1019,7 @@ for _, tabName in ipairs(DEX.Tabs) do
     end)
 end
 
--- ========================
--- INITIAL LOAD
--- ========================
-task.spawn(function()
-    pcall(function()
-        task.wait(0.3)
-        ExpState.ExpandedMap[game] = true
-        BuildNodeList()
-        RenderTree()
-        DEX.StatusText.Text = "Explorer loaded | " ..
-            ExpState.TotalNodes .. " nodes"
-    end)
-end)
-
-print("[DEX] Part 2: Explorer Panel loaded")
-print("[DEX] Type 'готов' for Part 3: Script Viewer")
+print("[DEX] Part 2 (FIXED): Explorer Panel loaded")
+print("[DEX] Tree should now auto-load with game nodes")
 
 getgenv().DEX = DEX
