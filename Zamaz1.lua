@@ -1,29 +1,22 @@
 -- DEX Explorer v1.0 for Solara
--- Part 1: Core Foundation
--- ========================
+-- Part 1: Core Foundation (FIXED - no transparent bg)
+-- =====================================================
 
 local DEX = {}
 getgenv().DEX = DEX
 
--- ========================
--- SERVICES
--- ========================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local LogService = game:GetService("LogService")
 local CoreGui = game:GetService("CoreGui")
-
 local LocalPlayer = Players.LocalPlayer
 
--- ========================
--- CONFIG & STATE
--- ========================
 DEX.Version = "1.0.0"
 DEX.IsOpen = false
 DEX.ActiveTab = "Explorer"
-DEX.Tabs = {"Explorer", "Scripts", "Remotes", "Players", "Console", "Settings"}
+DEX.Tabs = {"Explorer","Scripts","Remotes","Players","Console","Settings"}
 
 DEX.State = {
     SelectedInstance = nil,
@@ -149,42 +142,36 @@ DEX.Themes.Monokai = {
 DEX.CurrentTheme = DEX.Themes.Dark
 
 -- ========================
--- UTILITY FUNCTIONS
+-- UTILS
 -- ========================
 local Utils = {}
 DEX.Utils = Utils
 
-function Utils.SafeGet(instance, prop)
-    local ok, val = pcall(function()
-        return instance[prop]
-    end)
-    if ok then
-        return val
-    end
+function Utils.SafeGet(inst, prop)
+    local ok, v = pcall(function() return inst[prop] end)
+    if ok then return v end
     return nil
 end
 
-function Utils.SafeSet(instance, prop, value)
-    local ok, err = pcall(function()
-        instance[prop] = value
-    end)
-    return ok, err
+function Utils.SafeSet(inst, prop, val)
+    local ok, e = pcall(function() inst[prop] = val end)
+    return ok, e
 end
 
-function Utils.GetFullPath(instance)
-    if not instance then return "nil" end
+function Utils.GetFullPath(inst)
+    if not inst then return "nil" end
     local ok, result = pcall(function()
-        local path = instance.Name
-        local current = instance.Parent
+        local path = inst.Name
+        local cur = inst.Parent
         local depth = 0
-        while current and depth < 50 do
+        while cur and depth < 50 do
             depth = depth + 1
-            if current == game then
+            if cur == game then
                 path = "game." .. path
                 break
             end
-            path = current.Name .. "." .. path
-            current = current.Parent
+            path = cur.Name .. "." .. path
+            cur = cur.Parent
         end
         return path
     end)
@@ -192,112 +179,56 @@ function Utils.GetFullPath(instance)
     return "unknown"
 end
 
-function Utils.GetClassName(instance)
-    local ok, cls = pcall(function()
-        return instance.ClassName
-    end)
-    if ok then return cls end
+function Utils.GetClassName(inst)
+    local ok, c = pcall(function() return inst.ClassName end)
+    if ok then return c end
     return "Unknown"
 end
 
-function Utils.GetInstanceName(instance)
-    local ok, name = pcall(function()
-        return instance.Name
-    end)
-    if ok then return name end
+function Utils.GetInstanceName(inst)
+    local ok, n = pcall(function() return inst.Name end)
+    if ok then return n end
     return "Unknown"
 end
 
 function Utils.Truncate(str, maxLen)
-    if type(str) ~= "string" then
-        str = tostring(str)
-    end
+    if type(str) ~= "string" then str = tostring(str) end
     if #str > maxLen then
         return string.sub(str, 1, maxLen - 3) .. "..."
     end
     return str
 end
 
-function Utils.ColorToHex(c)
-    local ok, result = pcall(function()
-        local r = math.floor(c.R * 255)
-        local g = math.floor(c.G * 255)
-        local b = math.floor(c.B * 255)
-        return string.format("#%02X%02X%02X", r, g, b)
-    end)
-    if ok then return result end
-    return "#FFFFFF"
+function Utils.GetClassIcon(cls)
+    return string.sub(cls, 1, 2)
 end
 
 function Utils.IsValidInstance(inst)
-    local ok, result = pcall(function()
-        return typeof(inst) == "Instance"
-    end)
-    return ok and result
+    local ok, r = pcall(function() return typeof(inst) == "Instance" end)
+    return ok and r
 end
 
 function Utils.GetChildren(inst)
-    local ok, children = pcall(function()
-        return inst:GetChildren()
-    end)
-    if ok then return children end
+    local ok, c = pcall(function() return inst:GetChildren() end)
+    if ok then return c end
     return {}
 end
 
 function Utils.GetDescendants(inst)
-    local ok, desc = pcall(function()
-        return inst:GetDescendants()
-    end)
-    if ok then return desc end
+    local ok, d = pcall(function() return inst:GetDescendants() end)
+    if ok then return d end
     return {}
 end
 
--- Class icons mapping
-DEX.ClassIcons = {
-    ["Workspace"] = "W",
-    ["Part"] = "P",
-    ["Model"] = "M",
-    ["Script"] = "S",
-    ["LocalScript"] = "L",
-    ["ModuleScript"] = "Mo",
-    ["RemoteEvent"] = "RE",
-    ["RemoteFunction"] = "RF",
-    ["BindableEvent"] = "BE",
-    ["BindableFunction"] = "BF",
-    ["Folder"] = "F",
-    ["Frame"] = "Fr",
-    ["TextLabel"] = "T",
-    ["TextButton"] = "Tb",
-    ["TextBox"] = "Tx",
-    ["ImageLabel"] = "Il",
-    ["ImageButton"] = "Ib",
-    ["ScreenGui"] = "SG",
-    ["BillboardGui"] = "BG",
-    ["SurfaceGui"] = "SG",
-    ["Camera"] = "C",
-    ["Players"] = "Pl",
-    ["Player"] = "Py",
-    ["Humanoid"] = "H",
-    ["HumanoidRootPart"] = "HR",
-    ["Tool"] = "To",
-    ["Animation"] = "An",
-    ["Sound"] = "So",
-    ["DataModel"] = "G",
-    ["ReplicatedStorage"] = "RS",
-    ["ServerStorage"] = "SS",
-    ["StarterGui"] = "StG",
-    ["StarterPack"] = "SP",
-    ["StarterPlayer"] = "StP",
-    ["Lighting"] = "Li",
-    ["Teams"] = "Te",
-    ["Chat"] = "Ch",
-    ["CoreGui"] = "CG",
-}
-
-function Utils.GetClassIcon(className)
-    local icon = DEX.ClassIcons[className]
-    if icon then return icon end
-    return string.sub(className, 1, 2)
+function Utils.ColorToHex(c)
+    local ok, r = pcall(function()
+        return string.format("#%02X%02X%02X",
+            math.floor(c.R*255),
+            math.floor(c.G*255),
+            math.floor(c.B*255))
+    end)
+    if ok then return r end
+    return "#FFFFFF"
 end
 
 -- ========================
@@ -313,9 +244,7 @@ function GuiHelpers.Create(className, props)
     if not ok then return nil end
     if props then
         for k, v in pairs(props) do
-            local setOk = pcall(function()
-                inst[k] = v
-            end)
+            pcall(function() inst[k] = v end)
         end
     end
     return inst
@@ -326,9 +255,7 @@ function GuiHelpers.Tween(instance, tweenInfo, props)
         return TweenService:Create(instance, tweenInfo, props)
     end)
     if ok and tween then
-        local playOk = pcall(function()
-            tween:Play()
-        end)
+        pcall(function() tween:Play() end)
         return tween
     end
     return nil
@@ -338,12 +265,12 @@ function GuiHelpers.MakeDraggable(frame, dragHandle)
     local dragging = false
     local dragStart = nil
     local startPos = nil
-
     local handle = dragHandle or frame
 
     handle.InputBegan:Connect(function(input)
-        local ok = pcall(function()
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        pcall(function()
+            if input.UserInputType ==
+                Enum.UserInputType.MouseButton1 then
                 dragging = true
                 dragStart = input.Position
                 startPos = frame.Position
@@ -352,8 +279,10 @@ function GuiHelpers.MakeDraggable(frame, dragHandle)
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        local ok = pcall(function()
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        pcall(function()
+            if dragging and
+                input.UserInputType ==
+                Enum.UserInputType.MouseMovement then
                 local delta = input.Position - dragStart
                 frame.Position = UDim2.new(
                     startPos.X.Scale,
@@ -366,8 +295,9 @@ function GuiHelpers.MakeDraggable(frame, dragHandle)
     end)
 
     UserInputService.InputEnded:Connect(function(input)
-        local ok = pcall(function()
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        pcall(function()
+            if input.UserInputType ==
+                Enum.UserInputType.MouseButton1 then
                 dragging = false
             end
         end)
@@ -377,7 +307,6 @@ end
 function GuiHelpers.MakeResizable(frame, minW, minH)
     minW = minW or 400
     minH = minH or 300
-
     local resizing = false
     local resizeStart = nil
     local startSize = nil
@@ -395,7 +324,8 @@ function GuiHelpers.MakeResizable(frame, minW, minH)
     if resizeHandle then
         resizeHandle.InputBegan:Connect(function(input)
             pcall(function()
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if input.UserInputType ==
+                    Enum.UserInputType.MouseButton1 then
                     resizing = true
                     resizeStart = input.Position
                     startSize = frame.Size
@@ -406,7 +336,9 @@ function GuiHelpers.MakeResizable(frame, minW, minH)
 
     UserInputService.InputChanged:Connect(function(input)
         pcall(function()
-            if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
+            if resizing and
+                input.UserInputType ==
+                Enum.UserInputType.MouseMovement then
                 local delta = input.Position - resizeStart
                 local newW = math.max(minW, startSize.X.Offset + delta.X)
                 local newH = math.max(minH, startSize.Y.Offset + delta.Y)
@@ -417,7 +349,8 @@ function GuiHelpers.MakeResizable(frame, minW, minH)
 
     UserInputService.InputEnded:Connect(function(input)
         pcall(function()
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if input.UserInputType ==
+                Enum.UserInputType.MouseButton1 then
                 resizing = false
             end
         end)
@@ -427,39 +360,39 @@ end
 function GuiHelpers.AddHover(btn, normalColor, hoverColor)
     btn.MouseEnter:Connect(function()
         pcall(function()
-            GuiHelpers.Tween(btn, TweenInfo.new(0.15), {BackgroundColor3 = hoverColor})
+            GuiHelpers.Tween(btn, TweenInfo.new(0.15),
+                {BackgroundColor3 = hoverColor})
         end)
     end)
     btn.MouseLeave:Connect(function()
         pcall(function()
-            GuiHelpers.Tween(btn, TweenInfo.new(0.15), {BackgroundColor3 = normalColor})
+            GuiHelpers.Tween(btn, TweenInfo.new(0.15),
+                {BackgroundColor3 = normalColor})
         end)
     end)
 end
 
 -- ========================
--- MAIN GUI CREATION
+-- DESTROY EXISTING
 -- ========================
 local function DestroyExisting()
     pcall(function()
-        local existing = CoreGui:FindFirstChild("DEXExplorer")
-        if existing then
-            existing:Destroy()
-        end
+        local e = CoreGui:FindFirstChild("DEXExplorer")
+        if e then e:Destroy() end
     end)
     pcall(function()
         if LocalPlayer and LocalPlayer.PlayerGui then
-            local existing = LocalPlayer.PlayerGui:FindFirstChild("DEXExplorer")
-            if existing then
-                existing:Destroy()
-            end
+            local e = LocalPlayer.PlayerGui:FindFirstChild("DEXExplorer")
+            if e then e:Destroy() end
         end
     end)
 end
 
 DestroyExisting()
 
--- Root ScreenGui
+-- ========================
+-- SCREENGUI — БЕЗ фона
+-- ========================
 local screenGui = nil
 pcall(function()
     screenGui = Instance.new("ScreenGui")
@@ -468,6 +401,9 @@ pcall(function()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.DisplayOrder = 999
     screenGui.IgnoreGuiInset = true
+
+    -- ВАЖНО: BackgroundTransparency не нужен у ScreenGui
+    -- Просто не добавляем никакого фонового фрейма
 
     local parentOk = pcall(function()
         screenGui.Parent = CoreGui
@@ -486,7 +422,7 @@ DEX.ScreenGui = screenGui
 local theme = DEX.CurrentTheme
 
 -- ========================
--- MAIN WINDOW
+-- MAIN WINDOW (только окно, без теней на весь экран)
 -- ========================
 local mainFrame = GuiHelpers.Create("Frame", {
     Name = "MainFrame",
@@ -505,30 +441,22 @@ end
 DEX.MainFrame = mainFrame
 
 pcall(function()
-    local shadow = GuiHelpers.Create("Frame", {
-        Name = "Shadow",
-        Parent = screenGui,
-        Size = UDim2.new(0, 920, 0, 620),
-        Position = UDim2.new(0.5, -460, 0.5, -310),
-        BackgroundColor3 = Color3.new(0, 0, 0),
-        BackgroundTransparency = 0.5,
-        BorderSizePixel = 0,
-        ZIndex = mainFrame.ZIndex - 1,
-    })
-    if shadow then
-        local cornerS = Instance.new("UICorner")
-        cornerS.CornerRadius = UDim.new(0, 10)
-        cornerS.Parent = shadow
-    end
-end)
-
-pcall(function()
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = mainFrame
 end)
 
--- Title Bar
+-- Тонкая обводка вместо тени
+pcall(function()
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = theme.Border
+    stroke.Thickness = 1.5
+    stroke.Parent = mainFrame
+end)
+
+-- ========================
+-- TITLE BAR
+-- ========================
 local titleBar = GuiHelpers.Create("Frame", {
     Name = "TitleBar",
     Parent = mainFrame,
@@ -538,18 +466,15 @@ local titleBar = GuiHelpers.Create("Frame", {
     BorderSizePixel = 0,
     ZIndex = 10,
 })
-
 DEX.TitleBar = titleBar
 
 pcall(function()
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 8)
-    titleCorner.Parent = titleBar
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = titleBar
 end)
-
 pcall(function()
-    local coverBottom = GuiHelpers.Create("Frame", {
-        Name = "CornerCover",
+    local cover = GuiHelpers.Create("Frame", {
         Parent = titleBar,
         Size = UDim2.new(1, 0, 0, 8),
         Position = UDim2.new(0, 0, 1, -8),
@@ -559,7 +484,6 @@ pcall(function()
     })
 end)
 
--- Title Icon + Text
 local titleIcon = GuiHelpers.Create("TextLabel", {
     Name = "TitleIcon",
     Parent = titleBar,
@@ -573,11 +497,10 @@ local titleIcon = GuiHelpers.Create("TextLabel", {
     BorderSizePixel = 0,
     ZIndex = titleBar.ZIndex + 1,
 })
-
 pcall(function()
-    local iconCorner = Instance.new("UICorner")
-    iconCorner.CornerRadius = UDim.new(0, 5)
-    iconCorner.Parent = titleIcon
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 5)
+    c.Parent = titleIcon
 end)
 
 local titleText = GuiHelpers.Create("TextLabel", {
@@ -597,7 +520,7 @@ local titleText = GuiHelpers.Create("TextLabel", {
 local versionLabel = GuiHelpers.Create("TextLabel", {
     Name = "VersionLabel",
     Parent = titleBar,
-    Size = UDim2.new(0, 80, 0, 16),
+    Size = UDim2.new(0, 100, 0, 16),
     Position = UDim2.new(0, 200, 0, 10),
     BackgroundTransparency = 1,
     Text = "Solara Edition",
@@ -608,7 +531,6 @@ local versionLabel = GuiHelpers.Create("TextLabel", {
     ZIndex = titleBar.ZIndex + 1,
 })
 
--- Close / Minimize buttons
 local closeBtn = GuiHelpers.Create("TextButton", {
     Name = "CloseBtn",
     Parent = titleBar,
@@ -622,11 +544,10 @@ local closeBtn = GuiHelpers.Create("TextButton", {
     BorderSizePixel = 0,
     ZIndex = titleBar.ZIndex + 1,
 })
-
 pcall(function()
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 5)
-    btnCorner.Parent = closeBtn
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 5)
+    c.Parent = closeBtn
 end)
 
 local minimizeBtn = GuiHelpers.Create("TextButton", {
@@ -642,20 +563,14 @@ local minimizeBtn = GuiHelpers.Create("TextButton", {
     BorderSizePixel = 0,
     ZIndex = titleBar.ZIndex + 1,
 })
-
 pcall(function()
-    local btnCorner2 = Instance.new("UICorner")
-    btnCorner2.CornerRadius = UDim.new(0, 5)
-    btnCorner2.Parent = minimizeBtn
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 5)
+    c.Parent = minimizeBtn
 end)
 
--- Draggable
 GuiHelpers.MakeDraggable(mainFrame, titleBar)
 GuiHelpers.MakeResizable(mainFrame, 700, 450)
-
--- Close logic
-local minimized = false
-local contentArea = nil
 
 closeBtn.MouseButton1Click:Connect(function()
     pcall(function()
@@ -663,9 +578,7 @@ closeBtn.MouseButton1Click:Connect(function()
             Size = UDim2.new(0, mainFrame.Size.X.Offset, 0, 0),
         })
         task.delay(0.25, function()
-            pcall(function()
-                screenGui:Destroy()
-            end)
+            pcall(function() screenGui:Destroy() end)
         end)
     end)
 end)
@@ -692,7 +605,6 @@ local tabLayout = GuiHelpers.Create("UIListLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder,
 })
 
--- Tab separator line
 local tabSep = GuiHelpers.Create("Frame", {
     Name = "TabSeparator",
     Parent = mainFrame,
@@ -703,13 +615,14 @@ local tabSep = GuiHelpers.Create("Frame", {
     ZIndex = 9,
 })
 
--- Content Area (below tab bar)
-contentArea = GuiHelpers.Create("Frame", {
+-- Content area — НЕПРОЗРАЧНЫЙ фон
+local contentArea = GuiHelpers.Create("Frame", {
     Name = "ContentArea",
     Parent = mainFrame,
     Size = UDim2.new(1, 0, 1, -69),
     Position = UDim2.new(0, 0, 0, 69),
     BackgroundColor3 = theme.Background,
+    BackgroundTransparency = 0,
     BorderSizePixel = 0,
     ZIndex = 8,
     ClipsDescendants = true,
@@ -717,20 +630,19 @@ contentArea = GuiHelpers.Create("Frame", {
 
 DEX.ContentArea = contentArea
 
--- Tab Pages container
 local tabPages = GuiHelpers.Create("Frame", {
     Name = "TabPages",
     Parent = contentArea,
     Size = UDim2.new(1, 0, 1, 0),
     Position = UDim2.new(0, 0, 0, 0),
-    BackgroundTransparency = 1,
+    BackgroundColor3 = theme.Background,
+    BackgroundTransparency = 0,
     BorderSizePixel = 0,
     ZIndex = 8,
 })
 
 DEX.TabPages = tabPages
 
--- Create tab pages
 DEX.Pages = {}
 for _, tabName in ipairs(DEX.Tabs) do
     local page = GuiHelpers.Create("Frame", {
@@ -738,7 +650,8 @@ for _, tabName in ipairs(DEX.Tabs) do
         Parent = tabPages,
         Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0, 0, 0, 0),
-        BackgroundTransparency = 1,
+        BackgroundColor3 = theme.Background,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         Visible = false,
         ZIndex = 8,
@@ -746,38 +659,35 @@ for _, tabName in ipairs(DEX.Tabs) do
     DEX.Pages[tabName] = page
 end
 
--- Create tab buttons
+-- ========================
+-- TAB BUTTONS
+-- ========================
 DEX.TabButtons = {}
 
 local tabWidths = {
     ["Explorer"] = 80,
-    ["Scripts"] = 70,
-    ["Remotes"] = 76,
-    ["Players"] = 70,
-    ["Console"] = 68,
+    ["Scripts"]  = 70,
+    ["Remotes"]  = 76,
+    ["Players"]  = 70,
+    ["Console"]  = 68,
     ["Settings"] = 70,
 }
 
 local function SwitchTab(tabName)
     pcall(function()
         DEX.ActiveTab = tabName
-
         for _, t in ipairs(DEX.Tabs) do
             local btn = DEX.TabButtons[t]
             local page = DEX.Pages[t]
             if btn and page then
                 if t == tabName then
-                    pcall(function()
-                        btn.BackgroundColor3 = theme.TabActive
-                        btn.TextColor3 = theme.Accent
-                        page.Visible = true
-                    end)
+                    btn.BackgroundColor3 = theme.TabActive
+                    btn.TextColor3 = theme.Accent
+                    page.Visible = true
                 else
-                    pcall(function()
-                        btn.BackgroundColor3 = theme.TabInactive
-                        btn.TextColor3 = theme.TextSecondary
-                        page.Visible = false
-                    end)
+                    btn.BackgroundColor3 = theme.TabInactive
+                    btn.TextColor3 = theme.TextSecondary
+                    page.Visible = false
                 end
             end
         end
@@ -801,17 +711,16 @@ for i, tabName in ipairs(DEX.Tabs) do
         LayoutOrder = i,
         ZIndex = 10,
     })
-
     DEX.TabButtons[tabName] = tabBtn
 
     tabBtn.MouseButton1Click:Connect(function()
         SwitchTab(tabName)
     end)
-
     GuiHelpers.AddHover(tabBtn, theme.TabInactive, theme.ButtonHover)
 end
 
--- Minimize logic
+-- Minimize
+local minimized = false
 minimizeBtn.MouseButton1Click:Connect(function()
     pcall(function()
         minimized = not minimized
@@ -853,14 +762,13 @@ local statusText = GuiHelpers.Create("TextLabel", {
     TextXAlignment = Enum.TextXAlignment.Left,
     ZIndex = 11,
 })
-
 DEX.StatusText = statusText
 
 local fpsLabel = GuiHelpers.Create("TextLabel", {
     Name = "FPSLabel",
     Parent = statusBar,
-    Size = UDim2.new(0, 120, 1, 0),
-    Position = UDim2.new(1, -180, 0, 0),
+    Size = UDim2.new(0, 140, 1, 0),
+    Position = UDim2.new(1, -200, 0, 0),
     BackgroundTransparency = 1,
     Text = "FPS: -- | Ping: --",
     TextColor3 = theme.TextSecondary,
@@ -869,7 +777,6 @@ local fpsLabel = GuiHelpers.Create("TextLabel", {
     TextXAlignment = Enum.TextXAlignment.Right,
     ZIndex = 11,
 })
-
 DEX.FPSLabel = fpsLabel
 
 local memLabel = GuiHelpers.Create("TextLabel", {
@@ -885,72 +792,67 @@ local memLabel = GuiHelpers.Create("TextLabel", {
     TextXAlignment = Enum.TextXAlignment.Right,
     ZIndex = 11,
 })
-
 DEX.MemLabel = memLabel
 
 -- ========================
--- LIVE STATS (RunService)
+-- LIVE STATS
 -- ========================
 local frameCount = 0
 local lastFPSTime = tick()
-local currentFPS = 0
+local statsConn = nil
 
-local statsConnection = nil
 pcall(function()
-    statsConnection = RunService.RenderStepped:Connect(function()
+    statsConn = RunService.RenderStepped:Connect(function()
         pcall(function()
             frameCount = frameCount + 1
             local now = tick()
-            local elapsed = now - lastFPSTime
-            if elapsed >= 1.0 then
-                currentFPS = math.floor(frameCount / elapsed)
+            if now - lastFPSTime >= 1.0 then
+                local fps = math.floor(frameCount / (now - lastFPSTime))
                 frameCount = 0
                 lastFPSTime = now
-
                 local ping = 0
                 pcall(function()
-                    ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
+                    ping = math.floor(
+                        LocalPlayer:GetNetworkPing() * 1000
+                    )
                 end)
-
                 local mem = 0
                 pcall(function()
                     mem = math.floor(gcinfo() / 1024)
                 end)
-
-                fpsLabel.Text = "FPS: " .. currentFPS .. " | Ping: " .. ping .. "ms"
+                fpsLabel.Text = "FPS: " .. fps ..
+                    " | Ping: " .. ping .. "ms"
                 memLabel.Text = "MEM: " .. mem .. "MB"
             end
         end)
     end)
 end)
 
-DEX.StatsConnection = statsConnection
+DEX.StatsConnection = statsConn
 
 -- ========================
--- CONTEXT MENU SYSTEM
+-- CONTEXT MENU
 -- ========================
 local ctxMenu = GuiHelpers.Create("Frame", {
     Name = "ContextMenu",
     Parent = screenGui,
-    Size = UDim2.new(0, 160, 0, 0),
+    Size = UDim2.new(0, 175, 0, 0),
     BackgroundColor3 = theme.BackgroundSecondary,
     BorderSizePixel = 0,
     Visible = false,
     ZIndex = 200,
     ClipsDescendants = true,
 })
-
 pcall(function()
-    local ctxCorner = Instance.new("UICorner")
-    ctxCorner.CornerRadius = UDim.new(0, 5)
-    ctxCorner.Parent = ctxMenu
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 5)
+    c.Parent = ctxMenu
 end)
-
 pcall(function()
-    local ctxStroke = Instance.new("UIStroke")
-    ctxStroke.Color = theme.Border
-    ctxStroke.Thickness = 1
-    ctxStroke.Parent = ctxMenu
+    local s = Instance.new("UIStroke")
+    s.Color = theme.Border
+    s.Thickness = 1
+    s.Parent = ctxMenu
 end)
 
 local ctxLayout = GuiHelpers.Create("UIListLayout", {
@@ -978,15 +880,13 @@ end
 local function ShowContextMenu(items, posX, posY)
     pcall(function()
         HideContextMenu()
-
-        local totalHeight = 4
+        local totalH = 4
         for idx, item in ipairs(items) do
             local btn = GuiHelpers.Create("TextButton", {
                 Name = "CtxItem" .. idx,
                 Parent = ctxMenu,
                 Size = UDim2.new(1, -4, 0, 26),
                 BackgroundColor3 = theme.BackgroundSecondary,
-                BackgroundTransparency = 0,
                 Text = "  " .. item.label,
                 TextColor3 = item.color or theme.Text,
                 TextSize = 11,
@@ -996,21 +896,32 @@ local function ShowContextMenu(items, posX, posY)
                 LayoutOrder = idx,
                 ZIndex = 201,
             })
-            totalHeight = totalHeight + 28
-
-            GuiHelpers.AddHover(btn, theme.BackgroundSecondary, theme.ButtonHover)
-
+            totalH = totalH + 28
+            GuiHelpers.AddHover(btn,
+                theme.BackgroundSecondary, theme.ButtonHover)
             local cb = item.callback
             btn.MouseButton1Click:Connect(function()
                 HideContextMenu()
-                if cb then
-                    pcall(cb)
-                end
+                if cb then pcall(cb) end
             end)
         end
+        ctxMenu.Size = UDim2.new(0, 175, 0, totalH)
 
-        ctxMenu.Size = UDim2.new(0, 160, 0, totalHeight)
-        ctxMenu.Position = UDim2.new(0, posX, 0, posY)
+        -- Не выходить за экран
+        local screenX = screenGui.AbsoluteSize.X
+        local screenY = screenGui.AbsoluteSize.Y
+        local menuW = 175
+        local menuH = totalH
+        local finalX = posX
+        local finalY = posY
+        if finalX + menuW > screenX then
+            finalX = screenX - menuW - 4
+        end
+        if finalY + menuH > screenY then
+            finalY = screenY - menuH - 4
+        end
+
+        ctxMenu.Position = UDim2.new(0, finalX, 0, finalY)
         ctxMenu.Visible = true
     end)
 end
@@ -1018,7 +929,6 @@ end
 DEX.ShowContextMenu = ShowContextMenu
 DEX.HideContextMenu = HideContextMenu
 
--- Close ctx on click elsewhere
 UserInputService.InputBegan:Connect(function(input)
     pcall(function()
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -1030,7 +940,7 @@ UserInputService.InputBegan:Connect(function(input)
 end)
 
 -- ========================
--- NOTIFICATION SYSTEM
+-- NOTIFICATIONS
 -- ========================
 local notifContainer = GuiHelpers.Create("Frame", {
     Name = "NotifContainer",
@@ -1054,106 +964,111 @@ local notifLayout = GuiHelpers.Create("UIListLayout", {
 local notifCount = 0
 
 local function ShowNotification(title, message, notifType)
-    notifType = notifType or "info"
-    notifCount = notifCount + 1
-
-    local typeColor = theme.Accent
-    if notifType == "success" then typeColor = theme.Success end
-    if notifType == "warning" then typeColor = theme.Warning end
-    if notifType == "error" then typeColor = theme.Error end
-
-    pcall(function()
-        local notif = GuiHelpers.Create("Frame", {
-            Name = "Notif" .. notifCount,
-            Parent = notifContainer,
-            Size = UDim2.new(0, 260, 0, 60),
-            BackgroundColor3 = theme.BackgroundSecondary,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0.05,
-            LayoutOrder = notifCount,
-        })
+    if not DEX.SETState or DEX.SETState.NotificationsEnabled ~= false then
+        notifType = notifType or "info"
+        notifCount = notifCount + 1
+        local typeColor = theme.Accent
+        if notifType == "success" then typeColor = theme.Success end
+        if notifType == "warning" then typeColor = theme.Warning end
+        if notifType == "error" then typeColor = theme.Error end
 
         pcall(function()
-            local nCorner = Instance.new("UICorner")
-            nCorner.CornerRadius = UDim.new(0, 6)
-            nCorner.Parent = notif
-        end)
-
-        local colorBar = GuiHelpers.Create("Frame", {
-            Parent = notif,
-            Size = UDim2.new(0, 3, 1, 0),
-            Position = UDim2.new(0, 0, 0, 0),
-            BackgroundColor3 = typeColor,
-            BorderSizePixel = 0,
-        })
-        pcall(function()
-            local cBarCorner = Instance.new("UICorner")
-            cBarCorner.CornerRadius = UDim.new(0, 3)
-            cBarCorner.Parent = colorBar
-        end)
-
-        local nTitle = GuiHelpers.Create("TextLabel", {
-            Parent = notif,
-            Size = UDim2.new(1, -16, 0, 22),
-            Position = UDim2.new(0, 10, 0, 4),
-            BackgroundTransparency = 1,
-            Text = title,
-            TextColor3 = typeColor,
-            TextSize = 11,
-            Font = Enum.Font.GothamBold,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        })
-
-        local nMsg = GuiHelpers.Create("TextLabel", {
-            Parent = notif,
-            Size = UDim2.new(1, -16, 0, 28),
-            Position = UDim2.new(0, 10, 0, 24),
-            BackgroundTransparency = 1,
-            Text = message,
-            TextColor3 = theme.TextSecondary,
-            TextSize = 10,
-            Font = Enum.Font.Gotham,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextWrapped = true,
-        })
-
-        notif.Position = UDim2.new(1, 10, 0, 0)
-        GuiHelpers.Tween(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-            Position = UDim2.new(0, 0, 0, 0),
-        })
-
-        task.delay(3.5, function()
+            local notif = GuiHelpers.Create("Frame", {
+                Name = "Notif" .. notifCount,
+                Parent = notifContainer,
+                Size = UDim2.new(0, 260, 0, 60),
+                BackgroundColor3 = theme.BackgroundSecondary,
+                BorderSizePixel = 0,
+                LayoutOrder = notifCount,
+            })
             pcall(function()
-                GuiHelpers.Tween(notif, TweenInfo.new(0.2), {
-                    BackgroundTransparency = 1,
-                    Position = UDim2.new(1, 10, 0, 0),
-                })
-                task.delay(0.25, function()
-                    pcall(function()
-                        notif:Destroy()
+                local c = Instance.new("UICorner")
+                c.CornerRadius = UDim.new(0, 6)
+                c.Parent = notif
+            end)
+            pcall(function()
+                local s = Instance.new("UIStroke")
+                s.Color = typeColor
+                s.Thickness = 1
+                s.Parent = notif
+            end)
+
+            local colorBar = GuiHelpers.Create("Frame", {
+                Parent = notif,
+                Size = UDim2.new(0, 3, 1, 0),
+                BackgroundColor3 = typeColor,
+                BorderSizePixel = 0,
+                ZIndex = notif.ZIndex + 1,
+            })
+            pcall(function()
+                local c = Instance.new("UICorner")
+                c.CornerRadius = UDim.new(0, 3)
+                c.Parent = colorBar
+            end)
+
+            GuiHelpers.Create("TextLabel", {
+                Parent = notif,
+                Size = UDim2.new(1, -16, 0, 22),
+                Position = UDim2.new(0, 10, 0, 4),
+                BackgroundTransparency = 1,
+                Text = title,
+                TextColor3 = typeColor,
+                TextSize = 11,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = notif.ZIndex + 1,
+            })
+
+            GuiHelpers.Create("TextLabel", {
+                Parent = notif,
+                Size = UDim2.new(1, -16, 0, 28),
+                Position = UDim2.new(0, 10, 0, 24),
+                BackgroundTransparency = 1,
+                Text = Utils.Truncate(message, 60),
+                TextColor3 = theme.TextSecondary,
+                TextSize = 10,
+                Font = Enum.Font.Gotham,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextWrapped = true,
+                ZIndex = notif.ZIndex + 1,
+            })
+
+            notif.Position = UDim2.new(1, 10, 0, 0)
+            GuiHelpers.Tween(notif,
+                TweenInfo.new(0.3, Enum.EasingStyle.Back),
+                {Position = UDim2.new(0, 0, 0, 0)})
+
+            task.delay(3.5, function()
+                pcall(function()
+                    GuiHelpers.Tween(notif, TweenInfo.new(0.2), {
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(1, 10, 0, 0),
+                    })
+                    task.delay(0.25, function()
+                        pcall(function() notif:Destroy() end)
                     end)
                 end)
             end)
         end)
-    end)
+    end
 end
 
 DEX.ShowNotification = ShowNotification
 
 -- ========================
--- THEME APPLY FUNCTION
+-- APPLY THEME
 -- ========================
 function DEX.ApplyTheme(themeName)
     local newTheme = DEX.Themes[themeName]
     if not newTheme then return end
     DEX.CurrentTheme = newTheme
     theme = newTheme
-
     pcall(function()
         mainFrame.BackgroundColor3 = theme.Background
         titleBar.BackgroundColor3 = theme.TitleBar
         tabBar.BackgroundColor3 = theme.TabInactive
         contentArea.BackgroundColor3 = theme.Background
+        tabPages.BackgroundColor3 = theme.Background
         statusBar.BackgroundColor3 = theme.TitleBar
         statusText.TextColor3 = theme.TextSecondary
         fpsLabel.TextColor3 = theme.TextSecondary
@@ -1162,12 +1077,11 @@ function DEX.ApplyTheme(themeName)
         versionLabel.TextColor3 = theme.Accent
         titleIcon.BackgroundColor3 = theme.Accent
         tabSep.BackgroundColor3 = theme.Accent
-        ctxMenu.BackgroundColor3 = theme.BackgroundSecondary
     end)
-
     for _, tabName in ipairs(DEX.Tabs) do
         pcall(function()
             local btn = DEX.TabButtons[tabName]
+            local page = DEX.Pages[tabName]
             if btn then
                 if tabName == DEX.ActiveTab then
                     btn.BackgroundColor3 = theme.TabActive
@@ -1177,10 +1091,12 @@ function DEX.ApplyTheme(themeName)
                     btn.TextColor3 = theme.TextSecondary
                 end
             end
+            if page then
+                page.BackgroundColor3 = theme.Background
+            end
         end)
     end
-
-    ShowNotification("Theme Applied", "Switched to " .. themeName, "info")
+    ShowNotification("Theme", "Switched to " .. themeName, "info")
 end
 
 -- ========================
@@ -1189,11 +1105,9 @@ end
 SwitchTab("Explorer")
 DEX.IsOpen = true
 
-ShowNotification("DEX Explorer", "Loaded successfully! v" .. DEX.Version, "success")
+ShowNotification("DEX Explorer", "Loaded v" .. DEX.Version, "success")
 
-print("[DEX] Core loaded successfully")
-print("[DEX] Available tabs: " .. table.concat(DEX.Tabs, ", "))
-print("[DEX] Type 'готов' to load Part 2 (Explorer Panel)")
+print("[DEX] Core loaded | No transparent background")
+print("[DEX] Type ready for Part 2")
 
--- Store reference globally
 getgenv().DEX = DEX
