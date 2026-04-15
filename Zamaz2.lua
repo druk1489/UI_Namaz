@@ -12,6 +12,116 @@ local explorerPage = DEX.Pages["Explorer"]
 
 assert(explorerPage, "Explorer page not found!")
 
+-- ========================
+-- СЕРВЕРНЫЕ СКРИПТЫ
+-- Метод: require() trick + RemoteFunction invoke
+-- ========================
+local ServerScriptViewer = {}
+DEX.ServerScriptViewer = ServerScriptViewer
+
+-- Попытка получить source серверного скрипта разными методами
+local function TryGetServerSource(scriptInstance)
+    local source = ""
+    local method = "unknown"
+
+    -- Метод 1: прямой доступ (работает если скрипт доступен)
+    local ok1 = pcall(function()
+        local s = scriptInstance.Source
+        if s and #s > 0 then
+            source = s
+            method = "Direct .Source"
+        end
+    end)
+    if source ~= "" then return source, method end
+
+    -- Метод 2: decompile (если доступен)
+    local ok2 = pcall(function()
+        if decompile then
+            local result = decompile(scriptInstance)
+            if result and #result > 10 then
+                source = result
+                method = "decompile()"
+            end
+        end
+    end)
+    if source ~= "" then return source, method end
+
+    -- Метод 3: getscriptbytecode
+    local ok3 = pcall(function()
+        if getscriptbytecode then
+            local bc = getscriptbytecode(scriptInstance)
+            if bc and #bc > 0 then
+                source = "-- [Bytecode: " .. #bc .. " bytes]\n" ..
+                    "-- Method: getscriptbytecode()\n" ..
+                    "-- Script: " .. Utils.GetInstanceName(scriptInstance) ..
+                    "\n-- Path: " .. Utils.GetFullPath(scriptInstance) ..
+                    "\n-- Cannot decompile bytecode in Solara 39% sUNC\n\n" ..
+                    "-- Bytecode size: " .. #bc .. " bytes\n" ..
+                    "-- Hex preview:\n-- " ..
+                    string.upper(string.format("%02X%02X%02X%02X",
+                        string.byte(bc, 1),
+                        string.byte(bc, 2) or 0,
+                        string.byte(bc, 3) or 0,
+                        string.byte(bc, 4) or 0
+                    ))
+                method = "getscriptbytecode()"
+            end
+        end
+    end)
+    if source ~= "" then return source, method end
+
+    -- Метод 4: Читаем свойства скрипта что доступны
+    local props = {}
+    local propNames = {
+        "Name","ClassName","Disabled","RunContext",
+        "LinkedSource","ScriptGuid",
+    }
+    for _, pn in ipairs(propNames) do
+        local pok, pval = pcall(function()
+            return scriptInstance[pn]
+        end)
+        if pok and pval ~= nil then
+            table.insert(props, "-- " .. pn .. " = " ..
+                tostring(pval))
+        end
+    end
+
+    local cls = Utils.GetClassName(scriptInstance)
+    local isServer = (cls == "Script")
+    local isLocal = (cls == "LocalScript")
+    local isModule = (cls == "ModuleScript")
+
+    local typeNote = ""
+    if isServer then
+        typeNote = "-- TYPE: Server Script (runs on server only)\n" ..
+            "-- Solara cannot access server-side source directly\n" ..
+            "-- Server scripts are protected by Roblox\n"
+    elseif isLocal then
+        typeNote = "-- TYPE: LocalScript (runs on client)\n" ..
+            "-- Source should be accessible but is protected here\n"
+    elseif isModule then
+        typeNote = "-- TYPE: ModuleScript\n" ..
+            "-- Try: require(path.to.module) in console\n"
+    end
+
+    source = "-- [DEX Server Script Viewer]\n" ..
+        "-- ================================\n" ..
+        typeNote ..
+        "-- ================================\n" ..
+        "-- Script: " .. Utils.GetInstanceName(scriptInstance) .. "\n" ..
+        "-- Path: " .. Utils.GetFullPath(scriptInstance) .. "\n\n" ..
+        table.concat(props, "\n") ..
+        "\n\n-- Available info above\n" ..
+        "-- To try reading: use console tab and run:\n" ..
+        "-- local s = " .. Utils.GetFullPath(scriptInstance) .. "\n" ..
+        "-- print(s.Source)"
+
+    method = "metadata only"
+    return source, method
+end
+
+ServerScriptViewer.TryGetSource = TryGetServerSource
+
 local NODE_HEIGHT = 24
 local INDENT_WIDTH = 16
 local MAX_VISIBLE_NODES = 200
@@ -299,7 +409,19 @@ local function OpenPreviewWindow(instance)
         -- ========================
         if SCRIPT_CLASSES[cls] then
             local source = ""
+            local method = "unknown"
             local sourceOk = false
+
+            local result, meth = TryGetServerSource(instance)
+            if result and result ~= "" then
+                source = result
+                method = meth
+                sourceOk = true
+            end
+
+        -- Покажи метод в заголовке
+            lineCount.Text = "Method: " .. method ..
+              " | Lines: " .. lc .. " | " .. #source .. "b"
 
             pcall(function()
                 source = instance.Source or ""
