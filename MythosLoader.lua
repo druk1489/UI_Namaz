@@ -1,12 +1,10 @@
--- Mythos Loader v4
--- Auto-loads Core Admin, injects `dex` / `vr` / `audio` as admin commands.
+-- Mythos Loader v5
+-- Auto-loads Core Admin. Injects `;dex` / `;vr` / `;audiologger` as admin sub-cmds.
+-- Patches Solara-mutilated commands whose source `firetouchinterest` / `hookmetamethod` calls were stripped.
 -- Repo: druk1489/UI_Namaz
 
 local REPO = "https://raw.githubusercontent.com/druk1489/UI_Namaz/main/"
 
--- ================================================================
--- HTTP
--- ================================================================
 local function httpGet(url)
     local ok, res
     if syn and syn.request then
@@ -33,75 +31,90 @@ local function say(t, m)
     print("[Mythos] " .. t .. ": " .. m)
 end
 
--- ================================================================
--- ADMIN PATCHER + INJECTION
--- ================================================================
+-- ============================================================
+-- Helpers used by admin patchers
+-- ============================================================
+local function cutBetween(src, startLit, endLit, replacement)
+    local s = src:find(startLit, 1, true)
+    if not s then return src, false end
+    local e = src:find(endLit, s, true)
+    if not e then return src, false end
+    return src:sub(1, s-1) .. replacement .. src:sub(e), true
+end
+
+local function cutBetweenNotify(src, startLit, notifyLit, replacement)
+    local s = src:find(startLit, 1, true)
+    if not s then return src, false end
+    local nm = src:find(notifyLit, s, true)
+    if not nm then return src, false end
+    local e2 = src:find("\nend)\n", nm, true)
+    if not e2 then return src, false end
+    return src:sub(1, s-1) .. replacement .. src:sub(e2 + 5), true
+end
+
+-- ============================================================
+-- Admin patcher: stub 9 Solara-broken commands, then inject sub-cmds
+-- ============================================================
 local function patchAdmin(src)
     local n = 0
+    local function inc(ok) if ok then n = n + 1 end end
 
-    -- Patch 1: broken clientantikick block (Solara-surgery leftover)
-    do
-        local s = src:find("addcmd%('clientantikick'", 1, false)
-        if s then
-            local e = src:find("\n\tnotify%('Client Antikick'", s, false)
-            if e then
-                local e2 = src:find("\nend%)\n", e, false)
-                if e2 then
-                    src = src:sub(1, s-1) ..
-                          "addcmd('clientantikick',{'antikick'},function() notify('Antikick','Disabled') end)" ..
-                          src:sub(e2 + 5)
-                    n = n + 1
-                end
-            end
-        end
-    end
+    -- 1. clientantikick  (hookmetamethod stripped -> orphan end))
+    local ok
+    src, ok = cutBetweenNotify(src,
+        "addcmd('clientantikick'", "\n\tnotify('Client Antikick'",
+        "addcmd('clientantikick',{'antikick'},function() notify('Antikick','Disabled') end)")
+    inc(ok)
 
-    -- Patch 2: broken clientantiteleport block
-    do
-        local s = src:find("addcmd%('clientantiteleport'", 1, false)
-        if s then
-            local e = src:find("\n\tnotify%('Client AntiTP'", s, false)
-            if e then
-                local e2 = src:find("\nend%)\n", e, false)
-                if e2 then
-                    src = src:sub(1, s-1) ..
-                          "addcmd('clientantiteleport',{'antiteleport'},function() notify('AntiTP','Disabled') end)" ..
-                          src:sub(e2 + 5)
-                    n = n + 1
-                end
-            end
-        end
-    end
+    -- 2. clientantiteleport
+    src, ok = cutBetweenNotify(src,
+        "addcmd('clientantiteleport'", "\n\tnotify('Client AntiTP'",
+        "addcmd('clientantiteleport',{'antiteleport'},function() notify('AntiTP','Disabled') end)")
+    inc(ok)
 
-    -- Patch 3: broken spoofspeed block (Solara orphan end))
-    do
-        local s = src:find("addcmd%('spoofspeed'", 1, false)
-        if s then
-            local e = src:find("\nend%)\n\naddcmd%('loopspeed'", s, false)
-            if e then
-                src = src:sub(1, s-1) ..
-                      "addcmd('spoofspeed',{'spoofws','spoofwalkspeed'},function() notify('SpoofSpeed','Disabled (hookmetamethod stripped)') end)" ..
-                      src:sub(e + 6)
-                n = n + 1
-            end
-        end
-    end
+    -- 3. spoofspeed
+    src, ok = cutBetween(src,
+        "addcmd('spoofspeed'", "\nend)\n\naddcmd('loopspeed'",
+        "addcmd('spoofspeed',{'spoofws','spoofwalkspeed'},function() notify('SpoofSpeed','Disabled') end)\n\n")
+    inc(ok)
 
-    -- Patch 4: broken spoofjumppower block (same Solara pattern, orphan end))
-    do
-        local s = src:find("addcmd%('spoofjumppower'", 1, false)
-        if s then
-            local e = src:find("\nend%)\n\naddcmd%('loopjumppower'", s, false)
-            if e then
-                src = src:sub(1, s-1) ..
-                      "addcmd('spoofjumppower',{'spoofjp'},function() notify('SpoofJump','Disabled (hookmetamethod stripped)') end)" ..
-                      src:sub(e + 6)
-                n = n + 1
-            end
-        end
-    end
+    -- 4. spoofjumppower
+    src, ok = cutBetween(src,
+        "addcmd('spoofjumppower'", "\nend)\n\naddcmd('loopjumppower'",
+        "addcmd('spoofjumppower',{'spoofjp'},function() notify('SpoofJump','Disabled') end)\n\n")
+    inc(ok)
 
-    -- INJECT: register `dex`, `vr`, `audiologger` as admin sub-commands
+    -- 5. clearhats  (firetouchinterest stripped -> stray `,0)` + ambiguous call)
+    src, ok = cutBetween(src,
+        "addcmd('clearhats'", "\nend)\n\naddcmd('vr'",
+        "addcmd('clearhats',{'cleanhats'},function()\n\tfor _,v in pairs(Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid'):GetAccessories()) do pcall(function() v:Destroy() end) end\n\tnotify('ClearHats','Removed (no-fire mode)')\nend)\n\n")
+    inc(ok)
+
+    -- 6. dupetools  (mismatched paren from stripped firetouchinterest)
+    src, ok = cutBetween(src,
+        "addcmd('dupetools'", "\nend)\n\nlocal RS = RunService.RenderStepped",
+        "addcmd('dupetools',{'clonetools'},function() notify('DupeTools','Disabled (broken source)') end)\n\n")
+    inc(ok)
+
+    -- 7. givetool  (ambiguous `Tools = true` + `(function()end)()`)
+    src, ok = cutBetween(src,
+        "addcmd('givetool'", "\nend)\n\naddcmd('touchinterests'",
+        "addcmd('givetool',{'givetools'},function() notify('GiveTool','Disabled (broken source)') end)\n\n")
+    inc(ok)
+
+    -- 8. touchinterests  (ambiguous `wait()` + `(function()end)()` inside task.spawn)
+    src, ok = cutBetween(src,
+        "addcmd('touchinterests'", "\nend)\n\naddcmd('fullbright'",
+        "addcmd('touchinterests',{'touchinterest','firetouchinterests','firetouchinterest'},function() notify('TouchInterests','Disabled (broken source)') end)\n\n")
+    inc(ok)
+
+    -- 9. handlekill  (mismatched parens from stripped firetouchinterest)
+    src, ok = cutBetween(src,
+        "addcmd('handlekill'", "\nend)\n\nlocal hb = RunService.Heartbeat",
+        "addcmd('handlekill',{'hkill'},function() notify('HandleKill','Disabled (broken source)') end)\n\n")
+    inc(ok)
+
+    -- INJECT sub-cmds
     local INJECT = [==[
 
 -- ================================================================
@@ -215,9 +228,9 @@ end
     return src, n
 end
 
--- ================================================================
--- LOAD ADMIN
--- ================================================================
+-- ============================================================
+-- Load admin
+-- ============================================================
 local function loadAdmin()
     say("Mythos", "Downloading Core Admin...")
     local src = httpGet(REPO .. "mythos_admin.lua")
