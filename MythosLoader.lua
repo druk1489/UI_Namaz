@@ -1,4 +1,4 @@
--- Mythos Loader v3
+-- Mythos Loader v4
 -- Auto-loads Core Admin, injects `dex` / `vr` / `audio` as admin commands.
 -- Repo: druk1489/UI_Namaz
 
@@ -73,23 +73,35 @@ local function patchAdmin(src)
         end
     end
 
-    -- Patch 3: broken spoofspeed block (orphan `end)` on lines 9715/9723)
-    -- Original had hookmetamethod(game, __index/__namecall, function...) - Solara
-    -- replaced with `= nil` leaving dangling function bodies and stray `end)`.
+    -- Patch 3: broken spoofspeed block (Solara orphan end))
     do
         local s = src:find("addcmd%('spoofspeed'", 1, false)
         if s then
             local e = src:find("\nend%)\n\naddcmd%('loopspeed'", s, false)
             if e then
                 src = src:sub(1, s-1) ..
-                      "addcmd('spoofspeed',{'spoofws','spoofwalkspeed'},function(args, speaker) notify('SpoofSpeed','Disabled (hookmetamethod stripped in this exploit)') end)" ..
-                      src:sub(e + 6)  -- skip past "\nend)\n\n"
+                      "addcmd('spoofspeed',{'spoofws','spoofwalkspeed'},function() notify('SpoofSpeed','Disabled (hookmetamethod stripped)') end)" ..
+                      src:sub(e + 6)
                 n = n + 1
             end
         end
     end
 
-    -- INJECT: append registration of `dex`, `vr`, `audio` sub-module commands
+    -- Patch 4: broken spoofjumppower block (same Solara pattern, orphan end))
+    do
+        local s = src:find("addcmd%('spoofjumppower'", 1, false)
+        if s then
+            local e = src:find("\nend%)\n\naddcmd%('loopjumppower'", s, false)
+            if e then
+                src = src:sub(1, s-1) ..
+                      "addcmd('spoofjumppower',{'spoofjp'},function() notify('SpoofJump','Disabled (hookmetamethod stripped)') end)" ..
+                      src:sub(e + 6)
+                n = n + 1
+            end
+        end
+    end
+
+    -- INJECT: register `dex`, `vr`, `audiologger` as admin sub-commands
     local INJECT = [==[
 
 -- ================================================================
@@ -148,7 +160,6 @@ do
         notify("Mythos", label .. " loaded OK")
     end
 
-    -- Patchers per file
     local function patchExplorer(src)
         src = src:gsub(
             'env%.game:GetService%("CoreGui"%) = game:GetService%("CoreGui"%)',
@@ -178,7 +189,6 @@ do
         return src
     end
 
-    -- Register CMDs help entries (visible in ;cmds list)
     if CMDs then
         CMDs[#CMDs+1] = {NAME = 'dex',        DESC = '[Mythos] Load Dex Explorer'}
         CMDs[#CMDs+1] = {NAME = 'vr',         DESC = '[Mythos] Load VR Tools'}
