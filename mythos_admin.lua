@@ -1963,12 +1963,45 @@ function r15(plr)
 end
 
 function toClipboard(String)
-	local clipBoard = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set)
-	if clipBoard then
-		clipBoard(String)
-		notify('Clipboard','Copied to clipboard')
+	-- Всегда передаём СТРОКУ: setclipboard на многих исполнителях падает на числах
+	-- (copyuserid / copyid / caid / creatorid раньше кидали number -> "иногда не робит")
+	local text = tostring(String)
+
+	-- Собираем ВСЕ доступные функции буфера обмена (Solara и др.)
+	local funcs = {}
+	if type(setclipboard) == "function" then table.insert(funcs, setclipboard) end
+	if type(toclipboard) == "function" then table.insert(funcs, toclipboard) end
+	if type(set_clipboard) == "function" then table.insert(funcs, set_clipboard) end
+	if Clipboard and type(Clipboard.set) == "function" then table.insert(funcs, Clipboard.set) end
+
+	if #funcs == 0 then
+		return notify('Clipboard', "Your exploit doesn't have the ability to use the clipboard")
+	end
+
+	-- Некоторые исполнители требуют повышенный thread identity для записи в буфер
+	local oldIdentity
+	if type(setthreadidentity) == "function" and type(getthreadidentity) == "function" then
+		oldIdentity = select(2, pcall(getthreadidentity))
+		pcall(setthreadidentity, 2)
+	end
+
+	-- Пробуем каждую функцию по очереди, пока одна не сработает
+	local ok = false
+	for _, f in ipairs(funcs) do
+		if pcall(f, text) then
+			ok = true
+			break
+		end
+	end
+
+	if oldIdentity ~= nil then
+		pcall(setthreadidentity, oldIdentity)
+	end
+
+	if ok then
+		notify('Clipboard', 'Copied to clipboard')
 	else
-		notify('Clipboard',"Your exploit doesn't have the ability to use the clipboard")
+		notify('Clipboard', "Failed to copy to clipboard")
 	end
 end
 
@@ -4638,6 +4671,22 @@ CMDs[#CMDs + 1] = {NAME = 'use2022materials / 2022materials', DESC = 'Enables 20
 CMDs[#CMDs + 1] = {NAME = 'unuse2022materials / un2022materials', DESC = 'Disables 2022 material textures'}
 -- New Dark Networks Commands
 CMDs[#CMDs + 1] = {NAME = 'nolighting / nolight', DESC = 'Disables all lighting in the game'}
+CMDs[#CMDs + 1] = {NAME = '', DESC = ''}
+CMDs[#CMDs + 1] = {NAME = 'tpgame / tpg', DESC = 'Открывает панель телепорта по Place ID (Insert — скрыть)'}
+CMDs[#CMDs + 1] = {NAME = 'copyplaceinfo / cinfo', DESC = 'Копирует Place ID и название места в буфер'}
+CMDs[#CMDs + 1] = {NAME = 'camershake / cshake', DESC = 'Вкл/выкл эффект тряски камеры'}
+CMDs[#CMDs + 1] = {NAME = 'userinfo / ui [ник / ID]', DESC = 'Карточка игрока: дата рега, друзья, подписчики'}
+CMDs[#CMDs + 1] = {NAME = 'time / tod [0-24]', DESC = 'Время суток (Lighting.ClockTime)'}
+CMDs[#CMDs + 1] = {NAME = 'fog / fogend [дистанция]', DESC = 'Дальность тумана / видимости'}
+CMDs[#CMDs + 1] = {NAME = 'shadows / noshadows [on/off]', DESC = 'Вкл/выкл глобальные тени'}
+CMDs[#CMDs + 1] = {NAME = 'nightvision / nv', DESC = 'Ночное видение (токгл)'}
+CMDs[#CMDs + 1] = {NAME = 'killnpc / knpc', DESC = 'Убить всех NPC (не игроков) в игре'}
+CMDs[#CMDs + 1] = {NAME = 'platform / plat', DESC = 'Создать платформу под ногами'}
+CMDs[#CMDs + 1] = {NAME = 'listscripts / lscr', DESC = 'Список скриптов в буфер (getscripts)'}
+CMDs[#CMDs + 1] = {NAME = 'decompile / decr [имя]', DESC = 'Декомпилировать скрипт в буфер'}
+CMDs[#CMDs + 1] = {NAME = 'killgui / kg', DESC = 'Разблокировать мышь и уничтожить GUI игры (токгл)'}
+CMDs[#CMDs + 1] = {NAME = 'tospawn / safe', DESC = 'Вернуть на спавн/лобби + разблок мыши (если виснешь в воздухе)'}
+CMDs[#CMDs + 1] = {NAME = 'setlobby / slobby', DESC = 'Сохранить текущую точку как лобби'}
 wait()
 
 for i = 1, #CMDs do
@@ -5377,6 +5426,93 @@ Cmdbar:GetPropertyChangedSignal("Text"):Connect(function()
 		IndexContents(Cmdbar.Text,true,true)
 	end
 end)
+
+-- ══════════════════════════════════════════════════════════════
+-- ПОДСКАЗКИ НИКОВ: при вводе username / display name игрока под
+-- командной строкой показываются подходящие ники; клик = вставить
+-- ══════════════════════════════════════════════════════════════
+do
+	local PSug = Instance.new("ScrollingFrame")
+	PSug.Name = "PlayerSuggest"
+	PSug.Parent = Holder
+	PSug.BackgroundColor3 = Color3.fromRGB(36,36,37)
+	PSug.BackgroundTransparency = 0
+	PSug.BorderSizePixel = 0
+	PSug.Position = UDim2.new(0, 5, 0, 45)
+	PSug.Size = UDim2.new(0, 245, 0, 175)
+	PSug.ScrollBarImageColor3 = Color3.fromRGB(78,78,79)
+	PSug.ScrollBarThickness = 8
+	PSug.CanvasSize = UDim2.new(0,0,0,0)
+	PSug.ZIndex = 12
+	PSug.Visible = false
+
+	local psLayout = Instance.new("UIListLayout")
+	psLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	psLayout.Parent = PSug
+
+	local function lastToken(text)
+		local sp = 0
+		for i = 1, #text do
+			if text:sub(i,i) == " " then sp = i end
+		end
+		return text:sub(sp+1), sp
+	end
+
+	local function refresh()
+		for _, c in ipairs(PSug:GetChildren()) do
+			if c:IsA("TextButton") then c:Destroy() end
+		end
+		PSug.Visible = false
+		if not (Cmdbar and Cmdbar:IsFocused()) then return end
+		-- подсказываем только для аргументов (после первого слова-команды)
+		if not Cmdbar.Text:find(" ") then return end
+		local tok = lastToken(Cmdbar.Text)
+		if tok == "" then return end
+		local low = tok:lower()
+		local matches = {}
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl ~= Players.LocalPlayer then
+				local n = pl.Name:lower()
+				local d = (pl.DisplayName or ""):lower()
+				if n:sub(1,#low) == low or d:sub(1,#low) == low then
+					table.insert(matches, pl)
+				end
+			end
+		end
+		if #matches == 0 then return end
+		local order = 0
+		for _, pl in ipairs(matches) do
+			order = order + 1
+			local btn = Example:Clone()
+			btn.Name = "PSug"
+			btn.Parent = PSug
+			btn.Visible = true
+			btn.ZIndex = 13
+			btn.TextTransparency = 0
+			btn.TextColor3 = Color3.new(1,1,1)
+			btn.TextXAlignment = Enum.TextXAlignment.Left
+			btn.Text = pl.Name .. "  [".. (pl.DisplayName or pl.Name) .."]"
+			btn.LayoutOrder = order
+			local captured = pl.Name
+			btn.MouseButton1Down:Connect(function()
+				local cur = Cmdbar.Text
+				local _, sp = lastToken(cur)
+				Cmdbar:CaptureFocus()
+				Cmdbar.Text = cur:sub(1, sp) .. captured .. " "
+				wait()
+				Cmdbar.CursorPosition = #Cmdbar.Text + 1
+				PSug.Visible = false
+			end)
+		end
+		PSug.CanvasSize = UDim2.new(0,0,0, psLayout.AbsoluteContentSize.Y)
+		PSug.Visible = true
+	end
+
+	Cmdbar:GetPropertyChangedSignal("Text"):Connect(refresh)
+	Cmdbar.FocusLost:Connect(function()
+		PSug.Visible = false
+	end)
+end
 
 local tabComplete = nil
 tabAllowed = true
@@ -6600,8 +6736,466 @@ addcmd('breakloops',{'break'},function(args, speaker)
 	lastBreakTime = tick()
 end)
 
-addcmd('gametp',{'gameteleport'},function(args, speaker)
-	TeleportService:Teleport(args[1])
+-- ══════════════════════════════════════════════════════════════
+-- TPGAME — панель телепорта по Place ID (Insert — скрыть/показать)
+-- ══════════════════════════════════════════════════════════════
+local MYTHOS_TPGUI = nil
+addcmd('tpgame',{'gametp','gameteleport','tpg'},function(args, speaker)
+	local player = Players.LocalPlayer
+	local DEFAULT_PLACE = 11088977319
+
+	-- уже создана → просто показываем/прячем
+	if MYTHOS_TPGUI and MYTHOS_TPGUI.frame and MYTHOS_TPGUI.frame.Parent then
+		MYTHOS_TPGUI.frame.Visible = not MYTHOS_TPGUI.frame.Visible
+		return
+	end
+
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "MythosTeleportGui"
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	local pg = (gethui and gethui()) or player:FindFirstChildOfClass("PlayerGui") or game:GetService("CoreGui")
+	screenGui.Parent = pg
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Main"
+	frame.Size = UDim2.new(0, 260, 0, 140)
+	frame.Position = UDim2.new(0.5, -130, 0.4, 0)
+	frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+	frame.BorderSizePixel = 0
+	frame.Active = true
+	frame.Draggable = true
+	frame.Parent = screenGui
+
+	local frameCorner = Instance.new("UICorner")
+	frameCorner.CornerRadius = UDim.new(0, 8)
+	frameCorner.Parent = frame
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -20, 0, 28)
+	title.Position = UDim2.new(0, 10, 0, 6)
+	title.BackgroundTransparency = 1
+	title.Text = "Teleport by Place ID  [Insert — скрыть]"
+	title.TextColor3 = Color3.fromRGB(235, 235, 235)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 13
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = frame
+
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(1, -20, 0, 32)
+	box.Position = UDim2.new(0, 10, 0, 38)
+	box.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	box.PlaceholderText = "Place ID (пусто = " .. DEFAULT_PLACE .. ")"
+	box.Text = ""
+	box.TextColor3 = Color3.fromRGB(255, 255, 255)
+	box.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+	box.Font = Enum.Font.Gotham
+	box.TextSize = 14
+	box.ClearTextOnFocus = false
+	box.Parent = frame
+
+	local boxCorner = Instance.new("UICorner")
+	boxCorner.CornerRadius = UDim.new(0, 6)
+	boxCorner.Parent = box
+
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, -20, 0, 32)
+	button.Position = UDim2.new(0, 10, 0, 78)
+	button.BackgroundColor3 = Color3.fromRGB(0, 122, 204)
+	button.Text = "Teleport"
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 14
+	button.Parent = frame
+
+	local buttonCorner = Instance.new("UICorner")
+	buttonCorner.CornerRadius = UDim.new(0, 6)
+	buttonCorner.Parent = button
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Size = UDim2.new(1, -20, 0, 20)
+	statusLabel.Position = UDim2.new(0, 10, 0, 114)
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Text = ""
+	statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+	statusLabel.Font = Enum.Font.Gotham
+	statusLabel.TextSize = 12
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.Parent = frame
+
+	local function setStatus(text, color)
+		statusLabel.Text = text
+		statusLabel.TextColor3 = color
+	end
+
+	button.MouseButton1Click:Connect(function()
+		local txt = (box.Text or ""):gsub("%s", "")
+		local placeId
+		if txt == "" then
+			placeId = DEFAULT_PLACE
+		else
+			placeId = tonumber(txt)
+			if not placeId then
+				setStatus("Введи числовой Place ID", Color3.fromRGB(255, 100, 100))
+				return
+			end
+		end
+
+		button.Active = false
+		setStatus("Телепортация...", Color3.fromRGB(255, 220, 100))
+
+		local ok, err = pcall(function()
+			TeleportService:Teleport(placeId, player)
+		end)
+
+		if not ok then
+			setStatus("Ошибка: " .. tostring(err), Color3.fromRGB(255, 100, 100))
+		end
+
+		task.wait(2)
+		button.Active = true
+	end)
+
+	TeleportService.TeleportInitFailed:Connect(function(failedPlayer, _result, errorMessage)
+		if failedPlayer == player then
+			setStatus("Не удалось: " .. tostring(errorMessage), Color3.fromRGB(255, 100, 100))
+		end
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == Enum.KeyCode.Insert then
+			frame.Visible = not frame.Visible
+		end
+	end)
+
+	MYTHOS_TPGUI = { gui = screenGui, frame = frame, box = box }
+	notify('Teleport','Панель открыта. Insert — скрыть/показать')
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- COPYPLACEINFO — копирует Place ID + название места
+-- ══════════════════════════════════════════════════════════════
+addcmd('copyplaceinfo',{'cinfo','copyplace','cpi'},function(args, speaker)
+	local pid = game.PlaceId
+	local ok, info = pcall(function()
+		return MarketplaceService:GetProductInfo(pid)
+	end)
+	local pname = (ok and info and info.Name) or "Nothing"
+	toClipboard("PlaceID: " .. pid .. " / Name: " .. pname)
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- CAMERSHAKE — тряска камеры (токгл)
+-- ══════════════════════════════════════════════════════════════
+addcmd('camershake',{'cshake','shake','camshake'},function(args, speaker)
+	if _G.MYTHOS_CAMSHAKE then
+		local st = _G.MYTHOS_CAMSHAKE
+		if st.conn then pcall(function() st.conn:Disconnect() end) end
+		pcall(function() UserInputService.MouseIconEnabled = true end)
+		_G.MYTHOS_CAMSHAKE = nil
+		return notify('Camera Shake','Выключено')
+	end
+
+	local Camera = workspace.CurrentCamera
+	local Player = Players.LocalPlayer
+	local Humanoid = speaker.Character and speaker.Character:FindFirstChildOfClass("Humanoid")
+	if not Camera or not Humanoid then
+		return notify('Camera Shake','Нет камеры/персонажа')
+	end
+
+	-- float-safe random (Luau math.random(min,max) требует целые числа)
+	local function rf(a, b) return a + (b - a) * math.random() end
+	local function lerp(a, b, c) return a + (b - a) * c end
+
+	local bobbing = 1
+	local func1, func2, func3, func4 = 0, 0, 0, 0
+	local val, val2 = 0, 0
+	local int, int2 = 10, 10
+	local vect3 = Vector3.new()
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function(deltaTime)
+		deltaTime = deltaTime * 30
+		if Humanoid.Health <= 0 then
+			conn:Disconnect()
+			if _G.MYTHOS_CAMSHAKE and _G.MYTHOS_CAMSHAKE.conn == conn then
+				_G.MYTHOS_CAMSHAKE = nil
+				pcall(function() UserInputService.MouseIconEnabled = true end)
+			end
+			return
+		end
+		local rootMagnitude = Humanoid.RootPart and Vector3.new(Humanoid.RootPart.Velocity.X, 0, Humanoid.RootPart.Velocity.Z).Magnitude or 0
+		local calcRootMagnitude = math.min(rootMagnitude, 25)
+		if deltaTime > 1.5 then
+			func1 = 0
+			func2 = 0
+		else
+			func1 = lerp(func1, math.cos(tick() * 0.5 * rf(5, 7.5)) * (rf(2.5, 10) / 100) * deltaTime, 0.05 * deltaTime)
+			func2 = lerp(func2, math.cos(tick() * 0.5 * rf(2.5, 5)) * (rf(1, 5) / 100) * deltaTime, 0.05 * deltaTime)
+		end
+		Camera.CFrame = Camera.CFrame * (CFrame.fromEulerAnglesXYZ(0, 0, math.rad(func3)) * CFrame.fromEulerAnglesXYZ(math.rad(func4 * deltaTime), math.rad(val * deltaTime), val2) * CFrame.Angles(0, 0, math.rad(func4 * deltaTime * (calcRootMagnitude / 5))) * CFrame.fromEulerAnglesXYZ(math.rad(func1), math.rad(func2), math.rad(func2 * 20)))
+		val2 = math.clamp(lerp(val2, -Camera.CFrame:VectorToObjectSpace((Humanoid.RootPart and Humanoid.RootPart.Velocity or Vector3.new()) / math.max(Humanoid.WalkSpeed, 0.01)).X * 0.04, 0.1 * deltaTime), -0.12, 0.1)
+		func3 = lerp(func3, math.clamp(UserInputService:GetMouseDelta().X, -2.5, 2.5), 0.25 * deltaTime)
+		func4 = lerp(func4, math.sin(tick() * int) / 5 * math.min(1, int2 / 10), 0.25 * deltaTime)
+		if rootMagnitude > 1 then
+			val = lerp(val, math.cos(tick() * 0.5 * math.floor(int)) * (int / 200), 0.25 * deltaTime)
+		else
+			val = lerp(val, 0, 0.05 * deltaTime)
+		end
+		if rootMagnitude > 6 then
+			int = 10
+			int2 = 9
+		elseif rootMagnitude > 0.1 then
+			int = 6
+			int2 = 7
+		else
+			int2 = 0
+		end
+		Player.CameraMaxZoomDistance = 128
+		Player.CameraMinZoomDistance = 0.5
+		vect3 = lerp(vect3, Camera.CFrame.LookVector, 0.125 * deltaTime)
+	end)
+
+	_G.MYTHOS_CAMSHAKE = { conn = conn }
+	notify('Camera Shake','Включено')
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- USERINFO — карточка игрока через Roblox API (request)
+-- ══════════════════════════════════════════════════════════════
+addcmd('userinfo',{'ui','whois','pinfo'},function(args, speaker)
+	local query = args[1]
+	if not query then return notify('UserInfo','Использование: userinfo [ник / ID]') end
+
+	local userId = tonumber(query)
+	if not userId then
+		local q = tostring(query):lower()
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl.Name:lower() == q or (pl.DisplayName and pl.DisplayName:lower() == q) then
+				userId = pl.UserId
+				break
+			end
+		end
+	end
+	if not userId then
+		local ok, id = pcall(function() return Players:GetUserIdFromNameAsync(query) end)
+		if ok and id then userId = id end
+	end
+	if not userId then return notify('UserInfo','Игрок не найден: '..tostring(query)) end
+
+	local function getJSON(url)
+		if not httprequest then return nil end
+		local ok, res = pcall(function()
+			return httprequest({ Url = url, Method = "GET", Headers = { ["Content-Type"] = "application/json" } })
+		end)
+		if ok and res and res.Body then
+			return select(2, pcall(function() return HttpService:JSONDecode(res.Body) end))
+		end
+		return nil
+	end
+
+	local gui = _G.MYTHOS_USERINFO
+	if not gui or not gui.Parent then
+		gui = Instance.new("ScreenGui")
+		gui.Name = "MythosUserInfo"
+		gui.ResetOnSpawn = false
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		local pg = (gethui and gethui()) or Players.LocalPlayer:FindFirstChildOfClass("PlayerGui") or game:GetService("CoreGui")
+		gui.Parent = pg
+		_G.MYTHOS_USERINFO = gui
+	end
+	local old = gui:FindFirstChild("Card"); if old then old:Destroy() end
+
+	local card = Instance.new("Frame")
+	card.Name = "Card"
+	card.Size = UDim2.new(0, 270, 0, 120)
+	card.Position = UDim2.new(0.5, -135, 0.35, 0)
+	card.BackgroundColor3 = Color3.fromRGB(25,25,25)
+	card.BorderSizePixel = 0
+	card.Active = true
+	card.Draggable = true
+	card.Parent = gui
+	local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0,8); cc.Parent = card
+
+	local avatar = Instance.new("ImageLabel")
+	avatar.Size = UDim2.new(0,90,0,90)
+	avatar.Position = UDim2.new(0,10,0,15)
+	avatar.BackgroundTransparency = 1
+	avatar.Image = "rbxthumb://type=AvatarHeadShot&id="..userId.."&w=150&h=150"
+	avatar.Parent = card
+	local ac = Instance.new("UICorner"); ac.CornerRadius = UDim.new(0,8); ac.Parent = avatar
+
+	local function label(y, text, bold)
+		local l = Instance.new("TextLabel")
+		l.Size = UDim2.new(1,-125,0,18)
+		l.Position = UDim2.new(0,110,0,y)
+		l.BackgroundTransparency = 1
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.TextColor3 = Color3.fromRGB(235,235,235)
+		l.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+		l.TextSize = 13
+		l.TextTruncate = Enum.TextTruncate.AtEnd
+		l.Text = text
+		l.Parent = card
+		return l
+	end
+	local lUser = label(15, "Загрузка...", true)
+	local lDisp = label(35, "", false)
+	local lId   = label(55, "ID: "..userId, false)
+	local lJoin = label(75, "", false)
+	local lSoc  = label(95, "", false)
+
+	local close = Instance.new("TextButton")
+	close.Size = UDim2.new(0,22,0,22)
+	close.Position = UDim2.new(1,-26,0,4)
+	close.BackgroundTransparency = 1
+	close.Text = "X"
+	close.TextColor3 = Color3.fromRGB(255,120,120)
+	close.Font = Enum.Font.GothamBold
+	close.TextSize = 14
+	close.Parent = card
+	close.MouseButton1Click:Connect(function() card:Destroy() end)
+
+	task.spawn(function()
+		local prof = getJSON("https://users.roblox.com/v1/users/"..userId)
+		if prof then
+			lUser.Text = "@"..tostring(prof.name or "?")
+			lDisp.Text = "Name: "..tostring(prof.displayName or "?")
+			lJoin.Text = "В игре с: "..(prof.created and tostring(prof.created):sub(1,10) or "?")
+		else
+			lUser.Text = "@"..tostring(query)
+		end
+		local fr = getJSON("https://friends.roblox.com/v1/users/"..userId.."/friends/count")
+		local fo = getJSON("https://friends.roblox.com/v1/users/"..userId.."/followers/count")
+		lSoc.Text = string.format("Друзья: %s  •  Подписчики: %s",
+			fr and tostring(fr.count) or "?", fo and tostring(fo.count) or "?")
+	end)
+	notify('UserInfo','Карточка открыта для ID '..userId)
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- ОДИНОЧНАЯ ИГРА: time / fog / shadows / nightvision / killnpc /
+-- platform / listscripts / decompile
+-- ══════════════════════════════════════════════════════════════
+addcmd('time',{'tod','clock'},function(args, speaker)
+	local t = tonumber(args[1])
+	if not t then return notify('Time','Использование: time [0-24]') end
+	Lighting.ClockTime = math.clamp(t, 0, 24)
+	notify('Time','Время суток: '..Lighting.ClockTime)
+end)
+
+addcmd('fog',{'fogend'},function(args, speaker)
+	local f = tonumber(args[1])
+	if not f then return notify('Fog','Использование: fog [дистанция]') end
+	Lighting.FogEnd = f
+	Lighting.FogStart = 0
+	notify('Fog','Дальность тумана: '..f)
+end)
+
+addcmd('shadows',{'noshadows'},function(args, speaker)
+	local on = args[1] and args[1]:lower() or nil
+	if on == 'on' then Lighting.GlobalShadows = true
+	elseif on == 'off' then Lighting.GlobalShadows = false
+	else Lighting.GlobalShadows = not Lighting.GlobalShadows end
+	notify('Shadows','Тени: ' .. (Lighting.GlobalShadows and 'вкл' or 'выкл'))
+end)
+
+addcmd('nightvision',{'nv','gammabright'},function(args, speaker)
+	if _G.MYTHOS_NV then
+		local o = _G.MYTHOS_NV
+		Lighting.OutdoorAmbient = o.oa
+		Lighting.IndoorAmbient = o.ia
+		Lighting.Brightness = o.br
+		_G.MYTHOS_NV = nil
+		return notify('NightVision','Выключено')
+	end
+	_G.MYTHOS_NV = { oa = Lighting.OutdoorAmbient, ia = Lighting.IndoorAmbient, br = Lighting.Brightness }
+	Lighting.OutdoorAmbient = Color3.fromRGB(255,255,255)
+	Lighting.IndoorAmbient = Color3.fromRGB(255,255,255)
+	Lighting.Brightness = 5
+	notify('NightVision','Включено')
+end)
+
+addcmd('killnpc',{'knpc','killallnpc'},function(args, speaker)
+	local playerChars = {}
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl.Character then playerChars[pl.Character] = true end
+	end
+	local n = 0
+	for _, h in ipairs(workspace:GetDescendants()) do
+		if h:IsA("Humanoid") and h.Health > 0 then
+			local owner = h.Parent
+			if owner and not playerChars[owner] then
+				if pcall(function() h.Health = 0 end) then n = n + 1 end
+			end
+		end
+	end
+	notify('KillNPC','Убито NPC: '..n)
+end)
+
+addcmd('platform',{'plat'},function(args, speaker)
+	if _G.MYTHOS_PLATFORM and _G.MYTHOS_PLATFORM.Parent then
+		_G.MYTHOS_PLATFORM:Destroy()
+	end
+	local root = getRoot(speaker.Character)
+	if not root then return notify('Platform','Нет персонажа') end
+	local p = Instance.new("Part")
+	p.Name = "MythosPlatform"
+	p.Anchored = true
+	p.CanCollide = true
+	p.Size = Vector3.new(12, 1, 12)
+	p.Color = Color3.fromRGB(0,170,255)
+	p.CFrame = root.CFrame * CFrame.new(0, -3.5, 0)
+	p.Parent = workspace
+	_G.MYTHOS_PLATFORM = p
+	notify('Platform','Платформа создана')
+end)
+
+addcmd('listscripts',{'lscr','scriptlist'},function(args, speaker)
+	if type(getscripts) ~= "function" then
+		return notify('Scripts','getscripts не поддерживается этим исполнителем')
+	end
+	local ok, list = pcall(getscripts)
+	if not ok or type(list) ~= "table" then
+		return notify('Scripts','Не удалось получить список скриптов')
+	end
+	local arr = {}
+	for _, scr in ipairs(list) do table.insert(arr, scr) end
+	if #arr == 0 then for _, scr in pairs(list) do table.insert(arr, scr) end end
+	local names = {}
+	for _, scr in ipairs(arr) do
+		local okp, path = pcall(function() return scr:GetFullName() end)
+		if okp then table.insert(names, path) end
+	end
+	table.sort(names)
+	toClipboard(table.concat(names, "\n"))
+	notify('Scripts','Найдено скриптов: '..#names..' (список в буфере)')
+end)
+
+addcmd('decompile',{'decr','dscr'},function(args, speaker)
+	if type(decompile) ~= "function" then
+		return notify('Decompile','decompile не поддерживается этим исполнителем')
+	end
+	local name = args[1]
+	if not name then return notify('Decompile','Использование: decompile [имя скрипта]') end
+	local target
+	local all = (type(getinstances) == "function" and getinstances()) or {}
+	for _, scr in ipairs(all) do
+		if scr:IsA("LuaSourceContainer") and scr.Name:lower() == tostring(name):lower() then
+			target = scr
+			break
+		end
+	end
+	if not target then return notify('Decompile','Скрипт не найден: '..tostring(name)) end
+	local ok, src = pcall(function() return decompile(target) end)
+	if ok and src then
+		toClipboard(src)
+		notify('Decompile','Скопирован исходник: '..target.Name)
+	else
+		notify('Decompile','Не удалось декомпилировать '..target.Name)
+	end
 end)
 
 addcmd('rejoin',{'rj'},function(args, speaker)
@@ -7376,6 +7970,130 @@ addcmd('unhideguis',{},function(args, speaker)
 	hiddenGUIS = {}
 end)
 
+-- ══════════════════════════════════════════════════════════════
+-- KILLGUI / UNSTUCK — снимает лок мыши и уничтожает GUI игры
+-- (в т.ч. пересоздаваемые в рантайме), чтобы вернуть доступ к
+-- меню Roblox. Повторный вызов — выключает режим зачистки.
+-- ══════════════════════════════════════════════════════════════
+addcmd('killgui',{'nukegui','kg','unstuck','unlockmouse','fixmouse','cleargui'},function(args, speaker)
+	local UIS = UserInputService
+	local function unlockMouse()
+		pcall(function() UIS.MouseBehavior = Enum.MouseBehavior.Default end)
+		pcall(function() UIS.MouseIconEnabled = true end)
+	end
+
+	-- повторный вызов = выключить режим
+	if _G.MYTHOS_KILLGUI then
+		local st = _G.MYTHOS_KILLGUI
+		if st.added then pcall(function() st.added:Disconnect() end) end
+		if st.hb then pcall(function() st.hb:Disconnect() end) end
+		_G.MYTHOS_KILLGUI = nil
+		unlockMouse()
+		return notify('KillGUI','Режим зачистки GUI выключен')
+	end
+
+	local pg = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+
+	local function nukePlayerGui()
+		if not pg then return end
+		for _, g in ipairs(pg:GetChildren()) do
+			if g:IsA("ScreenGui") and g ~= PARENT then
+				pcall(function() g:Destroy() end)
+			end
+		end
+	end
+
+	-- разовая зачистка
+	unlockMouse()
+	nukePlayerGui()
+
+	-- держим режим: не даём игре пересоздать блокер и снова залочить мышь
+	local added = pg and pg.ChildAdded:Connect(function(g)
+		if g:IsA("ScreenGui") and g ~= PARENT then
+			task.defer(function() pcall(function() g:Destroy() end) end)
+		end
+	end)
+	local hb = RunService.Heartbeat:Connect(unlockMouse)
+
+	_G.MYTHOS_KILLGUI = { added = added, hb = hb }
+	notify('KillGUI','Мышь разблокирована, GUI игры уничтожаются. Повтор killgui — выключить')
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- TOSPAWN / SETLOBBY — вернуть персонажа на спавн/в лобби
+-- (когда игра не тепнула после смерти и ты висишь в воздухе)
+-- ══════════════════════════════════════════════════════════════
+local MYTHOS_LOBBY_FILE = "Mythos/lobby.txt"
+local function loadLobbyPos()
+	if _G.MYTHOS_LOBBY then return _G.MYTHOS_LOBBY end
+	if readfile and isfile and isfile(MYTHOS_LOBBY_FILE) then
+		local ok, s = pcall(readfile, MYTHOS_LOBBY_FILE)
+		if ok and s then
+			local x, y, z = s:match("([%d%.%-]+),([%d%.%-]+),([%d%.%-]+)")
+			x, y, z = tonumber(x), tonumber(y), tonumber(z)
+			if x and y and z then
+				_G.MYTHOS_LOBBY = Vector3.new(x, y, z)
+				return _G.MYTHOS_LOBBY
+			end
+		end
+	end
+	return nil
+end
+
+addcmd('setlobby',{'slobby','savelobby'},function(args, speaker)
+	local root = getRoot(speaker.Character)
+	if not root then return notify('Lobby','Нет персонажа') end
+	local p = root.Position
+	_G.MYTHOS_LOBBY = p
+	if makefolder and isfolder and not isfolder("Mythos") then pcall(makefolder, "Mythos") end
+	if writefile then
+		pcall(function() writefile(MYTHOS_LOBBY_FILE, string.format("%.3f,%.3f,%.3f", p.X, p.Y, p.Z)) end)
+	end
+	notify('Lobby','Точка лобби сохранена: '..tostring(p))
+end)
+
+addcmd('tospawn',{'tpspawn','tosafe','safe','lobby'},function(args, speaker)
+	-- заодно снимаем лок мыши, чтобы точно можно было управлять
+	pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
+	pcall(function() UserInputService.MouseIconEnabled = true end)
+
+	local player = Players.LocalPlayer
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and getRoot(char)
+	-- если мёртв / нет тела — респавним
+	if not root or (hum and hum.Health <= 0) then
+		pcall(function() player:LoadCharacter() end)
+		task.wait(1.2)
+		char = player.Character
+		root = char and getRoot(char)
+	end
+	if not root then return notify('ToSpawn','Нет персонажа') end
+
+	local pos = loadLobbyPos()
+	-- лобби не задано → пробуем точку респавна игры
+	if not pos then
+		local rl = player.RespawnLocation
+		if rl and (rl.X ~= 0 or rl.Y ~= 0 or rl.Z ~= 0) then pos = rl end
+	end
+	-- ищем SpawnLocation в мире
+	if not pos then
+		local sl = workspace:FindFirstChildOfClass("SpawnLocation")
+		if not sl then
+			for _, d in ipairs(workspace:GetDescendants()) do
+				if d:IsA("SpawnLocation") then sl = d break end
+			end
+		end
+		if sl then pos = sl.Position + Vector3.new(0, 4, 0) end
+	end
+	if not pos then
+		return notify('ToSpawn','Спавн не найден. Встань в лобби и напиши: setlobby')
+	end
+
+	pcall(function() root.CFrame = CFrame.new(pos.X, pos.Y + 3, pos.Z) end)
+	notify('ToSpawn','Возврат на спавн/лобби')
+end)
+
 function deleteGuisAtPos()
 	pcall(function()
 		local guisAtPosition = Players.LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(IYMouse.X, IYMouse.Y)
@@ -7472,20 +8190,22 @@ addcmd('clientantikick',{'antikick'},function(args, speaker)
 		return notify('Incompatible Exploit','Your exploit does not support this command (missing hookmetamethod)')
 	end
 	local LocalPlayer = Players.LocalPlayer
+	local newcclosure = newcclosure or function(f) return f end
+	local getnamecallmethod = getnamecallmethod or function() return "" end
 	local oldhmmi
 	local oldhmmnc
-	oldhmmi = nil
+	oldhmmi = hookmetamethod(game, "__index", newcclosure(function(self, method)
 		if self == LocalPlayer and method:lower() == "kick" then
 			return error("Expected ':' not '.' calling member function Kick", 2)
 		end
 		return oldhmmi(self, method)
-	end)
-	oldhmmnc = nil
-		if self == LocalPlayer and "":lower() == "kick" then
+	end))
+	oldhmmnc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if self == LocalPlayer and getnamecallmethod():lower() == "kick" then
 			return
 		end
 		return oldhmmnc(self, ...)
-	end)
+	end))
 
 	notify('Client Antikick','Client anti kick is now active (only effective on localscript kick)')
 end)
@@ -7496,24 +8216,26 @@ addcmd('clientantiteleport',{'antiteleport'},function(args, speaker)
 		return notify('Incompatible Exploit','Your exploit does not support this command (missing hookmetamethod)')
 	end
 	local TeleportService = TeleportService
+	local newcclosure = newcclosure or function(f) return f end
+	local getnamecallmethod = getnamecallmethod or function() return "" end
 	local oldhmmi
 	local oldhmmnc
-	oldhmmi = nil
+	oldhmmi = hookmetamethod(game, "__index", newcclosure(function(self, method)
 		if self == TeleportService then
 			if method:lower() == "teleport" then
-				return error("Expected ':' not '.' calling member function Kick", 2)
+				return error("Expected ':' not '.' calling member function Teleport", 2)
 			elseif method == "TeleportToPlaceInstance" then
 				return error("Expected ':' not '.' calling member function TeleportToPlaceInstance", 2)
 			end
 		end
 		return oldhmmi(self, method)
-	end)
-	oldhmmnc = nil
-		if self == TeleportService and "":lower() == "teleport" or "" == "TeleportToPlaceInstance" then
+	end))
+	oldhmmnc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if self == TeleportService and (getnamecallmethod():lower() == "teleport" or getnamecallmethod() == "TeleportToPlaceInstance") then
 			return
 		end
 		return oldhmmnc(self, ...)
-	end)
+	end))
 
 	notify('Client AntiTP','Client anti teleport is now active (only effective on localscript teleport)')
 end)
@@ -9752,16 +10474,17 @@ addcmd('spoofspeed',{'spoofws','spoofwalkspeed'},function(args, speaker)
 		if hookmetamethod then
 			local char = speaker.Character
 			local setspeed;
-			local index; index = nil
+			local checkcaller = checkcaller or function() return false end
+			local index; index = hookmetamethod(game, "__index", function(self, key)
 				local keyclean = key:gsub("\0", "")
-				if (keyclean == "WalkSpeed" or keyclean == "walkSpeed") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not false then
+				if (keyclean == "WalkSpeed" or keyclean == "walkSpeed") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not checkcaller() then
 					return setspeed or args[1]
 				end
 				return index(self, key)
 			end)
-			local newindex; newindex = nil
+			local newindex; newindex = hookmetamethod(game, "__newindex", function(self, key, value)
 				local keyclean = string.gsub(key, "\0", "")
-				if (keyclean == "WalkSpeed" or keyclean == "walkSpeed") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not false then
+				if (keyclean == "WalkSpeed" or keyclean == "walkSpeed") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not checkcaller() then
 					setspeed = tonumber(value)
 					return setspeed
 				end
@@ -9806,16 +10529,17 @@ addcmd('spoofjumppower',{'spoofjp'},function(args, speaker)
 		if hookmetamethod then
 			local char = speaker.Character
 			local setpower;
-			local index; index = nil
+			local checkcaller = checkcaller or function() return false end
+			local index; index = hookmetamethod(game, "__index", function(self, key)
 				local keyclean = key:gsub("\0", "")
-				if (keyclean == "JumpPower" or keyclean == "jumpPower") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not false then
+				if (keyclean == "JumpPower" or keyclean == "jumpPower") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not checkcaller() then
 					return setpower or args[1]
 				end
 				return index(self, key)
 			end)
-			local newindex; newindex = nil
+			local newindex; newindex = hookmetamethod(game, "__newindex", function(self, key, value)
 				local keyclean = string.gsub(key, "\0", "")
-				if (keyclean == "JumpPower" or keyclean == "jumpPower") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not false then
+				if (keyclean == "JumpPower" or keyclean == "jumpPower") and self:IsA("Humanoid") and self:IsDescendantOf(char) and not checkcaller() then
 					setpower = tonumber(value)
 					return setpower
 				end
@@ -10423,13 +11147,13 @@ addcmd('fireclickdetectors',{'firecd','firecds'}, function(args, speaker)
             local name = getstring(1)
             for _, descendant in ipairs(workspace:GetDescendants()) do
                 if descendant:IsA("ClickDetector") and descendant.Name == name then
-                    (function()end)()
+                    fireclickdetector(descendant)
                 end
             end
         else
             for _, descendant in ipairs(workspace:GetDescendants()) do
                 if descendant:IsA("ClickDetector") then
-                    (function()end)()
+                    fireclickdetector(descendant)
                 end
             end
         end
@@ -10452,13 +11176,13 @@ addcmd('fireproximityprompts',{'firepp'},function(args, speaker)
             local name = getstring(1)
             for _, descendant in ipairs(workspace:GetDescendants()) do
                 if descendant:IsA("ProximityPrompt") and descendant.Name == name then
-                    (function()end)()
+                    fireproximityprompt(descendant)
                 end
             end
         else
             for _, descendant in ipairs(workspace:GetDescendants()) do
                 if descendant:IsA("ProximityPrompt") then
-                    (function()end)()
+                    fireproximityprompt(descendant)
                 end
             end
         end
@@ -10473,7 +11197,7 @@ addcmd('instantproximityprompts',{'instantpp'},function(args, speaker)
 		execCmd("uninstantproximityprompts")
 		wait(0.1)
 		PromptButtonHoldBegan = ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
-			(function()end)()
+			fireproximityprompt(prompt)
 		end)
 	else
 		notify('Incompatible Exploit','Your exploit does not support this command (missing fireproximityprompt)')
@@ -10684,7 +11408,7 @@ addcmd('clearhats',{'cleanhats'},function(args, speaker)
 		
 		for i = 1, #Hats do
 			repeat RunService.Heartbeat:wait() until Hats[i]
-			(function()end)(),0)
+			firetouchinterest(Hats[i].Handle, Character:FindFirstChild("HumanoidRootPart"), 0)
 			repeat RunService.Heartbeat:wait() until Character:FindFirstChildOfClass("Accessory")
 			Character:FindFirstChildOfClass("Accessory"):Destroy()
 			repeat RunService.Heartbeat:wait() until not Character:FindFirstChildOfClass("Accessory")
@@ -10817,7 +11541,7 @@ addcmd('dupetools', {'clonetools'}, function(args, speaker)
 			local HRP = speaker.Character.HumanoidRootPart
 			if type(firetouchinterest) == "function" then
 				for _, v in ipairs(Tools) do
-					v.Anchored = not (function()end)()) and false or false
+					v.Anchored = not firetouchinterest(v.Handle, HRP, 0) and false or false
 				end
 			else
 				for _, v in ipairs(Tools) do
@@ -10861,8 +11585,8 @@ addcmd('givetool', {'givetools'}, function(args, speaker)
 		for _, v in ipairs(Char:GetChildren()) do
 			if v:IsA('BackpackItem') and v:FindFirstChild('Handle') then
 				Tools = true
-				(function()end)()
-				(function()end)()
+				firetouchinterest(v.Handle, vHRP, 0)
+				firetouchinterest(v.Handle, vHRP, 1)
 			end
 		end
 		if not Tools then
@@ -10887,9 +11611,9 @@ addcmd('touchinterests', {'touchinterest', 'firetouchinterests', 'firetouchinter
 		if x then
 			if firetouchinterest then
 				task.spawn(function()
-					(function()end)()
+					firetouchinterest(x, root, 0)
 					wait()
-					(function()end)()
+					firetouchinterest(x, root, 1)
 				end)
 			end
 			x.CFrame = root.CFrame
@@ -11369,7 +12093,12 @@ addcmd('handlekill', {'hkill'}, function(args, speaker)
 					break
 				end
 				for _, v1 in ipairs(v.Character.GetChildren(v.Character)) do
-					v1 = ((v1.IsA(v1, "BasePart") and (function()end)() and nil) or (function()end)()) and nil) or v1) or v1
+					if v1:IsA("BasePart") then
+						firetouchinterest(Handle, v1, 0)
+					elseif v1:IsA("Tool") then
+						local h = v1:FindFirstChild("Handle")
+						if h then firetouchinterest(Handle, h, 0) end
+					end
 				end
 			end
 			notify("Handle Kill Stopped!", v.Name .. " died/left or you unequipped the tool!")
@@ -12797,24 +13526,53 @@ local WS_HARD        = 110   -- WalkSpeed напрямую
 local JP_HARD        = 340   -- JumpPower напрямую
 local CHECK_DT       = 0.4   -- интервал проверки
 local AFK_TIME       = 5.0   -- секунд без движения = АФК
-local AIMBOT_THRU_N  = 6     -- сколько подряд через-стену прицелов = аимбот
+local AIMBOT_THRU_N  = 10    -- сколько ПОДРЯД через-стену прицелов = аимбот
 local AIMBOT_DIST    = 300   -- дальность луча из головы
+-- Сколькo подряд подтверждений нужно перед меткой (защита от ложных)
+local SPEED_STREAK   = 4     -- speed hack
+local FLY_STREAK     = 5     -- fly hack
+local WS_STREAK      = 5     -- WalkSpeed/JumpPower
+local WARMUP         = 3     -- сколько сэмплов калибруем до детекта
+local LAG_DT         = 1.0   -- если пауза между сэмплами больше — это лаг, скипаем
 
 -- Состояние по игроку
-local playerState = {}  -- [uid] = { pos, time, airTime, lastGround, lastMove, aimbotStreak }
+local playerState = {}  -- [uid] = { ... }
 
-local function getState(p)
-    if not playerState[p.UserId] then
-        playerState[p.UserId] = {
-            pos         = Vector3.new(0,0,0),
-            time        = os.clock(),
-            airTime     = 0,
-            lastGround  = os.clock(),
-            lastMove    = os.clock(),
-            aimbotStreak= 0,
-        }
+local function newState(char, root, now)
+    return {
+        char          = char,
+        pos           = (root and root.Position) or Vector3.new(0,0,0),
+        time          = now,
+        airTime       = 0,
+        lastGround    = now,
+        lastMove      = now,
+        warmup        = WARMUP,
+        isAfk         = false,
+        speedStreak   = 0,
+        flyStreak     = 0,
+        wsStreak      = 0,
+        aimbotStreak  = 0,
+        teleTo        = nil,
+        teleFrom      = nil,
+        teleDist      = nil,
+    }
+end
+
+-- ВАЖНО: инициализируем РЕАЛЬНОЙ позицией, а не (0,0,0),
+-- иначе первый же сэмпл даст ложный "телепорт" на обычном игроке
+local function getState(p, root)
+    local s = playerState[p.UserId]
+    if not s then
+        s = newState(p.Character, root, os.clock())
+        playerState[p.UserId] = s
     end
-    return playerState[p.UserId]
+    return s
+end
+
+local function resetState(p, root)
+    local s = newState(p.Character, root, os.clock())
+    playerState[p.UserId] = s
+    return s
 end
 
 -- Проверка: игрок сидит (транспорт, стул)
@@ -12822,6 +13580,17 @@ local function isSeated(p)
     local char = p.Character; if not char then return false end
     local hum = getHuman(char)
     return hum and hum.Sit == true
+end
+
+-- Является ли объект реальной твёрдой стеной (а не стеклом/декором/игроком)
+local function isSolidBlocker(inst)
+    if not inst or not inst:IsA("BasePart") then return false end
+    if not inst.CanCollide then return false end
+    if (inst.Transparency or 0) >= 0.6 then return false end
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl.Character and inst:IsDescendantOf(pl.Character) then return false end
+    end
+    return true
 end
 
 -- Проверка аимбота: луч из головы цели — бьёт ли по игроку ЧЕРЕЗ стену
@@ -12834,7 +13603,7 @@ local function checkAimbot(target)
     -- Параметры: исключаем персонажа цели
     local paramsAll = RaycastParams.new()
     paramsAll.FilterType             = Enum.RaycastFilterType.Exclude
-    paramsAll.FilterDescendantsInstances = char:GetChildren()
+    paramsAll.FilterDescendantsInstances = {char}
 
     -- Параметры: ТОЛЬКО персонажи других игроков
     local charParts = {}
@@ -12858,8 +13627,9 @@ local function checkAimbot(target)
 
     if not hitChar then return false end  -- вообще не смотрит на игрока
 
-    -- Если hitAll есть и его дистанция МЕНЬШЕ чем hitChar → между ними стена
-    if hitAll and hitAll.Distance < hitChar.Distance - 0.5 then
+    -- Между лучом и игроком должна быть РЕАЛЬНАЯ твёрдая стена,
+    -- иначе это обычный игрок, смотрящий сквозь открытую дверь/забор/стекло
+    if hitAll and hitAll.Distance < hitChar.Distance - 1.5 and isSolidBlocker(hitAll.Instance) then
         return true  -- смотрит ЧЕРЕЗ стену на игрока
     end
     return false
@@ -12876,74 +13646,131 @@ local function detectPlayer(target)
     local hum  = getHuman(char)
     if not root or not hum or hum.Health <= 0 then return nil end
 
+    local now = os.clock()
+    local s   = getState(target, root)
+
+    -- Респавн / сменился персонаж → сбрасываем стейт, НЕ детектим этот сэмпл
+    if s.char ~= char then
+        resetState(target, root)
+        return nil
+    end
+
+    -- Калибровка: первые сэмплы только задаём базовую позицию
+    if s.warmup > 0 then
+        s.warmup = s.warmup - 1
+        s.pos  = root.Position
+        s.time = now
+        return nil
+    end
+
     -- Если сидит → пропускаем speed/fly (транспорт)
     local seated = isSeated(target)
 
-    local now = os.clock()
-    local s   = getState(target)
     local pos = root.Position
-    local dt  = math.max(now - s.time, 0.001)
-    local dist = (pos - s.pos).Magnitude
-    local spd  = dist / dt
+    local dt  = now - s.time
 
-    -- АФК-проверка (не двигался 5 секунд)
-    local isAfk = false
+    -- Лаг-спайк / фриза тика: слишком большой интервал → перекалибруемся, скип
+    if dt <= 0 or dt > LAG_DT then
+        s.pos  = pos
+        s.time = now
+        s.teleTo, s.teleFrom, s.teleDist = nil, nil, nil
+        return nil
+    end
+
+    local dist = (pos - s.pos).Magnitude
+
+    -- АФК-проверка (не двигался AFK_TIME секунд)
     if dist < 0.5 then
-        -- не двигался
-        if (now - s.lastMove) >= AFK_TIME then
-            isAfk = true
-        end
+        if (now - s.lastMove) >= AFK_TIME then s.isAfk = true end
     else
-        s.lastMove = now  -- обновляем время движения
+        s.lastMove = now
+        s.isAfk = false
     end
 
     local reason = nil
 
     if not seated then
-        -- Speed hack (только горизонт)
+        -- Speed hack (только горизонт) + стрик подтверждений
         local horzDist = Vector3.new(pos.X - s.pos.X, 0, pos.Z - s.pos.Z).Magnitude
         local horzSpd  = horzDist / dt
         if horzSpd > SPEED_THRESH and hum.WalkSpeed < SPEED_THRESH then
+            s.speedStreak = s.speedStreak + 1
+        else
+            s.speedStreak = 0
+        end
+        if s.speedStreak >= SPEED_STREAK then
             reason = string.format("speed hack (%.0f s/s горизонт)", horzSpd)
         end
 
-        -- Телепорт
+        -- Телепорт: большой прыжок подтверждаем только если игрок ОСТАЛСЯ
+        -- в новой точке. Лаг-пакет A->B->A (возврат) НЕ детектим.
         if dist > TELE_DIST then
-            reason = string.format("teleport (%.0f studs)", dist)
+            if not s.teleTo then
+                s.teleFrom = s.pos          -- откуда прыгнул
+                s.teleTo   = pos            -- куда прыгнул
+                s.teleDist = dist
+            else
+                s.teleTo   = pos            -- продолжил скакать — обновляем точку
+                s.teleDist = math.max(s.teleDist, dist)
+            end
+        elseif s.teleTo then
+            local dFromNew = (pos - s.teleTo).Magnitude
+            local dFromOld = (pos - s.teleFrom).Magnitude
+            -- остался рядом с новой точкой и далеко от старой = реальный телепорт
+            if dFromNew < dFromOld and dFromNew < TELE_DIST and not reason then
+                reason = string.format("teleport (%.0f studs)", s.teleDist)
+            end
+            s.teleTo, s.teleFrom, s.teleDist = nil, nil, nil
         end
 
-        -- Fly hack: долго в воздухе + двигается горизонтально
+        -- Fly hack: долго в воздухе + двигается горизонтально + НЕ падает (стрик)
         local grounded = (hum.FloorMaterial ~= Enum.Material.Air)
+        local vertV    = math.abs((root.Velocity or Vector3.new()).Y)
         if grounded then
-            s.airTime   = 0
+            s.airTime    = 0
             s.lastGround = now
+            s.flyStreak  = 0
         else
             s.airTime = now - s.lastGround
             local horzV = Vector3.new(root.Velocity.X, 0, root.Velocity.Z).Magnitude
-            if s.airTime > FLY_AIR_TIME and horzV > FLY_HORZ_MIN then
+            -- настоящий флай: висит (верт. скорость ~0) и едет горизонтально;
+            -- обычный прыжок/падение с высоты имеет большой vertV → не флаим
+            if s.airTime > FLY_AIR_TIME and horzV > FLY_HORZ_MIN and vertV < 12 then
+                s.flyStreak = s.flyStreak + 1
+            else
+                s.flyStreak = 0
+            end
+            if s.flyStreak >= FLY_STREAK and not reason then
                 reason = string.format("fly hack (%.1fs воздух, %.0f horz-vel)", s.airTime, horzV)
             end
         end
 
-        -- WalkSpeed / JumpPower напрямую
-        if hum.WalkSpeed > WS_HARD then
-            reason = string.format("WalkSpeed=%.0f", hum.WalkSpeed)
+        -- WalkSpeed / JumpPower напрямую + стрик (некоторые игры легально дают скорость)
+        if hum.WalkSpeed > WS_HARD or hum.JumpPower > JP_HARD then
+            s.wsStreak = s.wsStreak + 1
+        else
+            s.wsStreak = 0
         end
-        if hum.JumpPower > JP_HARD then
-            reason = string.format("JumpPower=%.0f", hum.JumpPower)
+        if s.wsStreak >= WS_STREAK and not reason then
+            if hum.WalkSpeed > WS_HARD then
+                reason = string.format("WalkSpeed=%.0f", hum.WalkSpeed)
+            else
+                reason = string.format("JumpPower=%.0f", hum.JumpPower)
+            end
         end
+    else
+        s.speedStreak = 0
+        s.flyStreak   = 0
+        s.teleTo, s.teleFrom, s.teleDist = nil, nil, nil
     end
 
     -- Аимбот (независимо от seated, но не если АФК)
-    if not isAfk then
-        local throughWall = pcall and (function()
-            local ok,v = pcall(checkAimbot, target)
-            return ok and v or false
-        end)() or false
-
+    if not s.isAfk then
+        local ok, thru = pcall(checkAimbot, target)
+        local throughWall = (ok and thru) or false
         if throughWall then
             s.aimbotStreak = s.aimbotStreak + 1
-            if s.aimbotStreak >= AIMBOT_THRU_N then
+            if s.aimbotStreak >= AIMBOT_THRU_N and not reason then
                 reason = string.format("aimbot (через стену x%d)", s.aimbotStreak)
             end
         else
@@ -12999,771 +13826,5 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 notify('Mythos AC v2','✅ Загружен. Команды: markcheat / automarkcheat / partcontrol / partrain')
-end
--- ================================================================
--- MYTHOS ANTICHEAT v3
--- Fling: МОЙ торс раскручивается и бьёт цель (loop-TP)
--- Part rain: все unanchored парты кидаются на цель
--- partcontrol: управление всеми unanchored партами курсором/формами
--- Детект: speed / fly / tele / ws / jp / aimbot-через-стену / транспорт
--- automarkcheat / unmarkall
--- ================================================================
-
-do
-local HttpService = game:GetService("HttpService")
-local Players     = game:GetService("Players")
-local RunService  = game:GetService("RunService")
-local Debris      = game:GetService("Debris")
-local lp          = Players.LocalPlayer
-
--- ──────────────────────────────────────────────────────────────
--- Утилиты
--- ──────────────────────────────────────────────────────────────
-local function getRoot(char)
-    return char and (
-        char:FindFirstChild("HumanoidRootPart") or
-        char:FindFirstChild("UpperTorso") or
-        char:FindFirstChild("Torso")
-    )
-end
-local function getHuman(char)
-    return char and char:FindFirstChildOfClass("Humanoid")
-end
-local function getHead(char)
-    return char and char:FindFirstChild("Head")
-end
-
--- Все unanchored парты мира (не персонажи)
-local function worldUnanchored()
-    local out = {}
-    local chars = {}
-    for _, pl in ipairs(Players:GetPlayers()) do
-        if pl.Character then chars[pl.Character] = true end
-    end
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") and not v.Anchored then
-            local anc = v
-            local inChar = false
-            while anc do
-                if chars[anc] then inChar = true break end
-                anc = anc.Parent
-            end
-            if not inChar then table.insert(out, v) end
-        end
-    end
-    return out
-end
-
--- ──────────────────────────────────────────────────────────────
--- Лог-файл
--- ──────────────────────────────────────────────────────────────
-local LOG_DIR  = "Mythos"
-local LOG_FILE = LOG_DIR .. "/cheaters.json"
-local function ensureDir()
-    if isfolder and not isfolder(LOG_DIR) then makefolder(LOG_DIR) end
-end
-local function readLog()
-    ensureDir()
-    if readfile and isfile and isfile(LOG_FILE) then
-        local ok, d = pcall(function()
-            return HttpService:JSONDecode(readfile(LOG_FILE))
-        end)
-        if ok and type(d) == "table" then return d end
-    end
-    return {}
-end
-local function writeLog(t)
-    ensureDir()
-    if writefile then
-        local ok, s = pcall(function() return HttpService:JSONEncode(t) end)
-        if ok then writefile(LOG_FILE, s) end
-    end
-end
-local function logCheater(pl, reason)
-    local log = readLog()
-    for _, e in ipairs(log) do
-        if e.userId == pl.UserId then
-            e.detections = (e.detections or 1) + 1
-            e.lastSeen   = os.time()
-            e.reason     = reason
-            writeLog(log); return
-        end
-    end
-    table.insert(log, {
-        username    = pl.Name,
-        displayName = pl.DisplayName,
-        userId      = pl.UserId,
-        reason      = reason,
-        timestamp   = os.time(),
-        detections  = 1,
-    })
-    writeLog(log)
-end
-
--- ──────────────────────────────────────────────────────────────
--- Таблица помеченных
--- ──────────────────────────────────────────────────────────────
-local marked = {}          -- [userId] -> { player, conns={}, reason }
-local function isMarked(pl) return marked[pl.UserId] ~= nil end
-
--- ══════════════════════════════════════════════════════════════
--- НАКАЗАНИЕ 1: FLING СВОИМ ТОРСОМ
--- Логика из /fling: раскручиваем МОЙ HRP до 99999 угл. скорости
--- + loop-TP своего тела на позицию цели → физика выбивает цель
--- ══════════════════════════════════════════════════════════════
-local flingActive = false
-local flingTarget = nil
-local flingConn   = nil
-local flingBAV    = nil
-
-local function startFlingOnTarget(target)
-    -- Останавливаем предыдущий флинг
-    if flingActive then
-        flingActive = false
-        if flingConn  then flingConn:Disconnect();  flingConn  = nil end
-        if flingBAV   then flingBAV:Destroy();       flingBAV   = nil end
-    end
-
-    local myChar = lp.Character
-    if not myChar then return end
-    local myRoot = getRoot(myChar)
-    if not myRoot then return end
-
-    -- ── Применяем физику КАК В /fling ──────────────────────────
-    for _, p in ipairs(myChar:GetDescendants()) do
-        if p:IsA("BasePart") then
-            pcall(function()
-                p.CustomPhysicalProperties = PhysicalProperties.new(math.huge, 0.3, 0.5)
-                p.CanCollide = false
-                p.Massless   = true
-                p.Velocity   = Vector3.new(0, 0, 0)
-            end)
-        end
-    end
-
-    -- BAV на МОЙ HRP
-    flingBAV = Instance.new("BodyAngularVelocity")
-    flingBAV.Name            = "MYTHOS_FLING"
-    flingBAV.AngularVelocity = Vector3.new(0, 99999, 0)
-    flingBAV.MaxTorque       = Vector3.new(0, math.huge, 0)
-    flingBAV.P               = math.huge
-    flingBAV.Parent          = myRoot
-
-    flingActive = true
-    flingTarget = target
-
-    -- ── Loop-TP моего тела на цель ──────────────────────────────
-    -- Чередуем: несколько тиков на цели → тик отскок (чтобы не застрять)
-    flingConn = RunService.Heartbeat:Connect(function()
-        if not flingActive or not isMarked(target) then
-            flingActive = false
-            if flingBAV and flingBAV.Parent then flingBAV:Destroy() end
-            flingConn:Disconnect()
-            -- Восстанавливаем физику
-            local ch = lp.Character
-            if ch then
-                for _, p in ipairs(ch:GetDescendants()) do
-                    if p:IsA("BasePart") then
-                        pcall(function()
-                            p.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
-                            p.CanCollide = true
-                            p.Massless   = false
-                        end)
-                    end
-                end
-            end
-            return
-        end
-        local tChar = target.Character
-        if not tChar then return end
-        local tRoot = getRoot(tChar)
-        if not tRoot then return end
-        local myR = getRoot(lp.Character)
-        if not myR then return end
-        -- Телепортируем мой HRP прямо в HRP цели
-        myR.CFrame = tRoot.CFrame
-        -- Пульсируем угловую скорость для максимального хаоса
-        flingBAV.AngularVelocity = Vector3.new(
-            math.random(-5000, 5000),
-            math.random(80000, 99999),
-            math.random(-5000, 5000)
-        )
-    end)
-end
-
-local function stopFling()
-    flingActive = false
-    if flingConn then flingConn:Disconnect(); flingConn = nil end
-    if flingBAV  then flingBAV:Destroy();     flingBAV  = nil end
-    local ch = lp.Character
-    if ch then
-        for _, p in ipairs(ch:GetDescendants()) do
-            if p:IsA("BasePart") then
-                pcall(function()
-                    p.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
-                    p.CanCollide = true
-                    p.Massless   = false
-                end)
-            end
-        end
-    end
-end
-
--- ══════════════════════════════════════════════════════════════
--- НАКАЗАНИЕ 2: PART RAIN — все unanchored парты кидаются на цель
--- (логика телекинез-тула: BodyPosition + удар скоростью)
--- ══════════════════════════════════════════════════════════════
-local partRainActive = {}   -- [userId] = thread
-
-local function startPartRain(target)
-    if partRainActive[target.UserId] then return end
-    partRainActive[target.UserId] = task.spawn(function()
-        while isMarked(target) do
-            local char = target.Character
-            local root = char and getRoot(char)
-            if root then
-                local parts = worldUnanchored()
-                local center = root.CFrame.Position
-                for _, p in ipairs(parts) do
-                    pcall(function()
-                        -- Убираем старые BodyPosition если есть
-                        for _, c in ipairs(p:GetChildren()) do
-                            if c:IsA("BodyPosition") and c.Name == "MYTHOS_RAIN" then
-                                c:Destroy()
-                            end
-                        end
-                        -- Телекинез: BodyPosition с притяжением к цели
-                        local bp = Instance.new("BodyPosition")
-                        bp.Name     = "MYTHOS_RAIN"
-                        bp.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                        bp.P        = 12000
-                        bp.D        = 300
-                        bp.Position = center + Vector3.new(
-                            math.random(-2, 2),
-                            math.random(-1, 3),
-                            math.random(-2, 2)
-                        )
-                        bp.Parent   = p
-                        Debris:AddItem(bp, 1.5)
-                        -- Доп. импульс — кидаем с разгоном
-                        p.Velocity = (center - p.Position).Unit * math.random(80, 200)
-                    end)
-                end
-            end
-            task.wait(1.2)
-        end
-        partRainActive[target.UserId] = nil
-    end)
-end
-
-local function stopPartRain(target)
-    if partRainActive[target.UserId] then
-        -- поток остановится сам когда isMarked = false
-        partRainActive[target.UserId] = nil
-    end
-    -- Убираем все MYTHOS_RAIN BodyPosition из мира
-    for _, p in ipairs(workspace:GetDescendants()) do
-        if p:IsA("BodyPosition") and p.Name == "MYTHOS_RAIN" then
-            pcall(function() p:Destroy() end)
-        end
-    end
-end
-
--- ══════════════════════════════════════════════════════════════
--- Остальные наказания
--- ══════════════════════════════════════════════════════════════
-local function punishKill(t)
-    local h = t.Character and getHuman(t.Character)
-    if h then h.Health = 0 end
-end
-local function punishFreeze(t)
-    local h = t.Character and getHuman(t.Character)
-    if h then h.WalkSpeed = 0; h.JumpPower = 0 end
-end
-local function punishBlast(t)
-    local char = t.Character; if not char then return end
-    for _, p in ipairs(char:GetChildren()) do
-        if p:IsA("BasePart") then
-            local bf = Instance.new("BodyForce")
-            bf.Force = Vector3.new(
-                math.random(-8e4, 8e4),
-                math.random(1e5, 2e5),
-                math.random(-8e4, 8e4)
-            )
-            bf.Parent = p
-            Debris:AddItem(bf, 0.08)
-        end
-    end
-end
-local function punishVoid(t)
-    local r = t.Character and getRoot(t.Character)
-    if r then r.CFrame = CFrame.new(0, -5000, 0) end
-end
-
-local PUNISH_CYCLE = { punishKill, punishBlast, punishFreeze, punishVoid }
-
--- ══════════════════════════════════════════════════════════════
--- Запуск / остановка всего пакета наказаний
--- ══════════════════════════════════════════════════════════════
-local function startPunish(target)
-    local entry = marked[target.UserId]; if not entry then return end
-
-    -- 1. Флинг своим торсом
-    startFlingOnTarget(target)
-
-    -- 2. Part rain
-    startPartRain(target)
-
-    -- 3. Цикл kill/blast/freeze/void
-    local loopThread = task.spawn(function()
-        local idx = 1
-        while isMarked(target) do
-            pcall(PUNISH_CYCLE[idx], target)
-            idx = (idx % #PUNISH_CYCLE) + 1
-            task.wait(0.4)
-        end
-    end)
-
-    -- 4. При CharacterAdded — сразу флинг снова
-    local cc = target.CharacterAdded:Connect(function()
-        task.wait(0.05)
-        if isMarked(target) then
-            startFlingOnTarget(target)
-            pcall(punishFreeze, target)
-        end
-    end)
-    table.insert(entry.conns, cc)
-end
-
-local function stopPunish(target)
-    local entry = marked[target.UserId]; if not entry then return end
-    -- Останавливаем флинг только если он был на ЭТОЙ цели
-    if flingTarget == target then stopFling() end
-    stopPartRain(target)
-    for _, c in ipairs(entry.conns) do pcall(function() c:Disconnect() end) end
-    marked[target.UserId] = nil
-end
-
--- ══════════════════════════════════════════════════════════════
--- КОМАНДЫ: markcheat / unmarkcheat / unmarkall
--- ══════════════════════════════════════════════════════════════
-CMDs[#CMDs+1]={NAME='markcheat [plr]',     DESC='[AC] Пометить читера (fling-торс + part rain + kill loop)'}
-CMDs[#CMDs+1]={NAME='unmarkcheat [plr]',   DESC='[AC] Снять метку с игрока'}
-CMDs[#CMDs+1]={NAME='unmarkall',           DESC='[AC] Снять ВСЕ метки, остановить систему'}
-CMDs[#CMDs+1]={NAME='listcheats',          DESC='[AC] Список активных меток'}
-CMDs[#CMDs+1]={NAME='loadcheats',          DESC='[AC] Лог из файла'}
-CMDs[#CMDs+1]={NAME='automarkcheat',       DESC='[AC] Вкл/выкл авто-детект читеров'}
-CMDs[#CMDs+1]={NAME='partrain [plr]',      DESC='[AC] Кинуть все unanchored парты в игрока'}
-CMDs[#CMDs+1]={NAME='partcontrol [form]',  DESC='[AC] Управление всеми unanchored партами (sphere/cube/tornado/cursor/next/stop)'}
-
-addcmd('markcheat',{'mc','cheat'},function(args,speaker)
-    for _, name in ipairs(getPlayer(args[1], speaker)) do
-        local t = Players[name]
-        if not t then
-            notify('Mythos AC','Не найден: '..tostring(name))
-        elseif t == lp then
-            notify('Mythos AC','Нельзя себя')
-        elseif isMarked(t) then
-            notify('Mythos AC', t.Name..' уже помечен')
-        else
-            marked[t.UserId] = {player=t, conns={}, reason='manual'}
-            logCheater(t, 'manual')
-            startPunish(t)
-            notify('Mythos AC','☠ '..t.Name..' → fling+rain+loop')
-        end
-    end
-end)
-
-addcmd('unmarkcheat',{'umc','uncheat'},function(args,speaker)
-    for _, name in ipairs(getPlayer(args[1], speaker)) do
-        local t = Players[name]
-        if t and isMarked(t) then
-            stopPunish(t)
-            notify('Mythos AC','✅ '..t.Name..' снят')
-        else
-            notify('Mythos AC', tostring(name)..' не помечен')
-        end
-    end
-end)
-
-addcmd('unmarkall',{'clearmarks','stopac','disableac'},function(args,speaker)
-    local n = 0
-    for uid, entry in pairs(marked) do
-        pcall(stopPunish, entry.player); n=n+1
-    end
-    marked = {}
-    autoDetectEnabled = false
-    stopFling()
-    notify('Mythos AC','Снято: '..n..'. Система остановлена.')
-end)
-
-addcmd('listcheats',{'lc'},function(args,speaker)
-    local list={}
-    for _, e in pairs(marked) do
-        if e.player then table.insert(list, e.player.Name..'('..e.reason..')') end
-    end
-    notify('Mythos AC','Метки: '..(#list==0 and 'нет' or table.concat(list,', ')))
-end)
-
-addcmd('loadcheats',{'cheatslog'},function(args,speaker)
-    local log = readLog()
-    if #log==0 then notify('Mythos AC','Лог пуст'); return end
-    local lines={}
-    for _, e in ipairs(log) do
-        table.insert(lines, e.username..' — '..(e.reason or '?')..' x'..(e.detections or 1))
-    end
-    notify('Mythos Лог ('..#log..')', table.concat(lines,'\n'))
-end)
-
-addcmd('partrain',{'prain'},function(args,speaker)
-    for _, name in ipairs(getPlayer(args[1], speaker)) do
-        local t = Players[name]
-        if t then
-            local char = t.Character
-            local root = char and getRoot(char)
-            if root then
-                local parts = worldUnanchored()
-                local ctr = root.CFrame.Position
-                for _, p in ipairs(parts) do
-                    pcall(function()
-                        p.CFrame   = CFrame.new(ctr + Vector3.new(math.random(-3,3), math.random(6,20), math.random(-3,3)))
-                        p.Velocity = Vector3.new(math.random(-100,100), math.random(-180,-60), math.random(-100,100))
-                    end)
-                end
-                notify('Mythos','Part rain → '..t.Name..' ('..#parts..' парт)')
-            end
-        end
-    end
-end)
-
--- ══════════════════════════════════════════════════════════════
--- PARTCONTROL — управление всеми unanchored партами
--- ══════════════════════════════════════════════════════════════
-local pcRunning = false
-local pcBodies  = {}    -- [part] = { bp=BodyPos, bg=BodyGyro }
-local pcFormIdx = 1
-local FORM_NAMES = {'Сфера','Куб','Торнадо','За курсором'}
-
-local function pcClean()
-    for p, b in pairs(pcBodies) do
-        pcall(function() b.bp:Destroy() end)
-        pcall(function() b.bg:Destroy() end)
-    end
-    pcBodies = {}
-end
-
-local function pcFormPos(i, n, origin)
-    if pcFormIdx == 1 then   -- Сфера
-        local phi   = math.acos(1 - 2*i/math.max(n,1))
-        local theta = math.pi*(1+math.sqrt(5))*i
-        local r = math.max(4, n*0.18)
-        return origin + Vector3.new(r*math.sin(phi)*math.cos(theta), r*math.cos(phi)*0.6, r*math.sin(phi)*math.sin(theta))
-    elseif pcFormIdx == 2 then  -- Куб
-        local side = math.ceil(n^(1/3))
-        local s    = 3.5
-        local x = (i-1) % side
-        local y = math.floor((i-1)/side) % side
-        local z = math.floor((i-1)/(side*side)) % side
-        return origin + Vector3.new(x*s - side*s/2, y*s, z*s - side*s/2)
-    elseif pcFormIdx == 3 then  -- Торнадо
-        local angle = (i-1)*0.45 + os.clock()*2.5
-        local height = (i-1)*0.35
-        local r = 5 + (i-1)*0.05
-        return origin + Vector3.new(r*math.cos(angle), height, r*math.sin(angle))
-    else                     -- За курсором (кластер вокруг mouse.Hit)
-        local spread = 2
-        return origin + Vector3.new(
-            math.sin(i*2.3)*spread,
-            (i % 4)*1.2,
-            math.cos(i*2.3)*spread
-        )
-    end
-end
-
-local function pcStart()
-    pcClean()
-    local parts = worldUnanchored()
-    if #parts == 0 then
-        notify('Mythos PC','Нет unanchored парт в мире'); return
-    end
-    for _, p in ipairs(parts) do
-        local bp = Instance.new('BodyPosition')
-        bp.MaxForce = Vector3.new(1e6,1e6,1e6); bp.P=7000; bp.D=400
-        bp.Position = p.Position; bp.Parent = p
-        local bg = Instance.new('BodyGyro')
-        bg.MaxTorque = Vector3.new(1e5,1e5,1e5); bg.P=4000; bg.D=200
-        bg.CFrame = p.CFrame; bg.Parent = p
-        pcBodies[p] = {bp=bp, bg=bg}
-    end
-    pcRunning = true
-    notify('Mythos PC','▶ '..#parts..' парт захвачено. Форма: '..FORM_NAMES[pcFormIdx])
-    task.spawn(function()
-        local partList = {}
-        for p in pairs(pcBodies) do table.insert(partList, p) end
-        local n = #partList
-        while pcRunning do
-            -- Получаем origin: курсор мыши
-            local mouse   = lp:GetMouse()
-            local origin  = (mouse.Hit and mouse.Hit.Position)
-                         or (lp.Character and getRoot(lp.Character) and getRoot(lp.Character).Position)
-                         or Vector3.new(0,10,0)
-            for i, p in ipairs(partList) do
-                local b = pcBodies[p]
-                if b and b.bp and b.bp.Parent then
-                    local tgt = pcFormPos(i, n, origin)
-                    b.bp.Position = tgt
-                    b.bg.CFrame   = CFrame.new(tgt)
-                end
-            end
-            task.wait(0.05)
-        end
-    end)
-end
-
-addcmd('partcontrol',{'pc','partsctrl'},function(args,speaker)
-    local sub = args[1] and args[1]:lower() or ''
-    if sub == 'stop' or sub == 'off' then
-        pcRunning = false; pcClean()
-        notify('Mythos PC','■ Остановлено')
-    elseif sub == 'next' or sub == 'form' then
-        pcFormIdx = (pcFormIdx % #FORM_NAMES) + 1
-        notify('Mythos PC','Форма: '..FORM_NAMES[pcFormIdx])
-    elseif sub == 'sphere' then pcFormIdx=1; notify('Mythos PC','Форма: Сфера')
-    elseif sub == 'cube'   then pcFormIdx=2; notify('Mythos PC','Форма: Куб')
-    elseif sub == 'tornado' then pcFormIdx=3; notify('Mythos PC','Форма: Торнадо')
-    elseif sub == 'cursor' then pcFormIdx=4; notify('Mythos PC','Форма: Курсор')
-    else
-        if pcRunning then
-            pcRunning = false; pcClean(); task.wait(0.1)
-        end
-        pcStart()
-    end
-end)
-addcmd('stoppartcontrol',{'stoppc'},function(args,speaker)
-    pcRunning=false; pcClean()
-    notify('Mythos PC','■ Остановлено')
-end)
-
--- ══════════════════════════════════════════════════════════════
--- АВТО-ДЕТЕКТ
--- ══════════════════════════════════════════════════════════════
-local autoDetectEnabled = false
-
--- Конфиг порогов
-local CFG = {
-    SPEED_THRESH    = 82,    -- горизонт. studs/sec
-    FLY_AIR_TIME    = 3.8,   -- секунд в воздухе + движение = fly
-    FLY_HORZ_MIN    = 16,    -- горизонт. скорость при fly
-    FLY_VEHICLE_Y   = 30,    -- высота над землёй (транспорт-фляй)
-    TELE_DIST       = 185,   -- studs прыжок за тик
-    WS_HARD         = 105,   -- WalkSpeed напрямую
-    JP_HARD         = 330,   -- JumpPower напрямую
-    AFK_TIME        = 5.0,   -- секунд без движения = АФК (отключаем aimbot-луч)
-    AIMBOT_CONSEC   = 7,     -- сколько подряд через-стену-прицелов = аимбот
-    AIMBOT_RAY_LEN  = 350,   -- длина луча из головы
-    CHECK_DT        = 0.35,  -- интервал проверки
-}
-
--- Состояние игроков
-local pstate = {}  -- [uid] -> {pos,time,airTime,lastGround,lastMoveTime,aimbotStreak}
-
-local function getState(pl)
-    if not pstate[pl.UserId] then
-        local now = os.clock()
-        pstate[pl.UserId] = {
-            pos          = Vector3.new(0,0,0),
-            time         = now,
-            airTime      = 0,
-            lastGround   = now,
-            lastMoveTime = now,
-            aimbotStreak = 0,
-        }
-    end
-    return pstate[pl.UserId]
-end
-
--- Проверка: аимбот через стену
--- Бросаем луч из головы цели. Если луч попадает в персонажа через
--- препятствие (solid-парт ближе, чем персонаж) → через стену
-local function checkAimbot(target)
-    local char = target.Character; if not char then return false end
-    local head  = getHead(char);   if not head  then return false end
-    local origin = head.CFrame.Position
-    local lookDir = head.CFrame.LookVector
-
-    -- Собираем части других игроков
-    local otherParts = {}
-    for _, pl in ipairs(Players:GetPlayers()) do
-        if pl ~= target and pl.Character then
-            for _, p in ipairs(pl.Character:GetDescendants()) do
-                if p:IsA("BasePart") then
-                    table.insert(otherParts, p)
-                end
-            end
-        end
-    end
-    if #otherParts == 0 then return false end
-
-    -- Луч 1: во всё кроме своего персонажа (ищем препятствие)
-    local exAll = RaycastParams.new()
-    exAll.FilterType = Enum.RaycastFilterType.Exclude
-    exAll.FilterDescendantsInstances = {char}
-    local hitAll = workspace:Raycast(origin, lookDir * CFG.AIMBOT_RAY_LEN, exAll)
-
-    -- Луч 2: только в других персонажей
-    local incChar = RaycastParams.new()
-    incChar.FilterType = Enum.RaycastFilterType.Include
-    incChar.FilterDescendantsInstances = otherParts
-    local hitChar = workspace:Raycast(origin, lookDir * CFG.AIMBOT_RAY_LEN, incChar)
-
-    if not hitChar then return false end  -- вообще не смотрит на игрока
-
-    -- Если препятствие (не персонаж) ближе чем персонаж → смотрит через стену
-    if hitAll and hitAll.Distance < hitChar.Distance - 0.8 then
-        return true
-    end
-    return false
-end
-
--- Основная функция детекта одного игрока → возвращает reason или nil
-local function detectOne(target)
-    if target == lp or isMarked(target) then return nil end
-    local char = target.Character; if not char then return nil end
-    local root = getRoot(char);   if not root then return nil end
-    local hum  = getHuman(char);  if not hum or hum.Health <= 0 then return nil end
-
-    local now = os.clock()
-    local s   = getState(target)
-    local pos = root.Position
-    local dt  = math.max(now - s.time, 0.001)
-    local dv  = pos - s.pos
-    local dist = dv.Magnitude
-
-    -- АФК-чек: не двигался CFG.AFK_TIME секунд
-    local afk = false
-    if dist < 0.4 then
-        afk = (now - s.lastMoveTime) >= CFG.AFK_TIME
-    else
-        s.lastMoveTime = now
-    end
-
-    local seated = hum.Sit  -- сидит в транспорте/стуле
-
-    local reason = nil
-
-    -- ── Скоростные/физические детекты ────────────────────────
-    if not seated then
-        -- Горизонтальная скорость
-        local hDist = Vector3.new(dv.X, 0, dv.Z).Magnitude
-        local hSpd  = hDist / dt
-        if hSpd > CFG.SPEED_THRESH and hum.WalkSpeed < CFG.SPEED_THRESH then
-            reason = ('speed (%.0f s/s)'):format(hSpd)
-        end
-        -- Телепорт-прыжок
-        if dist > CFG.TELE_DIST then
-            reason = ('teleport (%.0f studs)'):format(dist)
-        end
-        -- Флай: долго в воздухе + горизонт. движение
-        local grounded = (hum.FloorMaterial ~= Enum.Material.Air)
-        if grounded then
-            s.airTime = 0; s.lastGround = now
-        else
-            s.airTime = now - s.lastGround
-            local hV = Vector3.new(root.Velocity.X, 0, root.Velocity.Z).Magnitude
-            if s.airTime > CFG.FLY_AIR_TIME and hV > CFG.FLY_HORZ_MIN then
-                reason = ('fly (%.1fs air, %.0f hv)'):format(s.airTime, hV)
-            end
-        end
-    else
-        -- СИДИТ: проверяем летающий транспорт
-        -- Если сидит И высоко над землёй И быстро летит → летающий транспорт с хаком
-        local groundRay = workspace:Raycast(
-            pos,
-            Vector3.new(0, -1000, 0),
-            (function()
-                local rp = RaycastParams.new()
-                rp.FilterType = Enum.RaycastFilterType.Exclude
-                rp.FilterDescendantsInstances = {char}
-                return rp
-            end)()
-        )
-        local heightAboveGround = groundRay
-            and (pos.Y - groundRay.Position.Y)
-            or 9999
-        -- Сидит, летит высоко И очень быстро (не обычный самолёт — читерский)
-        local absSpeed = Vector3.new(root.Velocity.X, 0, root.Velocity.Z).Magnitude
-        if heightAboveGround > CFG.FLY_VEHICLE_Y and absSpeed > CFG.SPEED_THRESH * 1.8 then
-            reason = ('vehicle fly hack (h=%.0f, v=%.0f)'):format(heightAboveGround, absSpeed)
-        end
-    end
-
-    -- WalkSpeed / JumpPower напрямую
-    if not reason then
-        if hum.WalkSpeed > CFG.WS_HARD then
-            reason = ('WalkSpeed=%.0f'):format(hum.WalkSpeed)
-        elseif hum.JumpPower > CFG.JP_HARD then
-            reason = ('JumpPower=%.0f'):format(hum.JumpPower)
-        end
-    end
-
-    -- ── Аимбот-луч из головы ─────────────────────────────────
-    -- Только если не АФК
-    if not afk then
-        local ok, thru = pcall(checkAimbot, target)
-        if ok and thru then
-            s.aimbotStreak = s.aimbotStreak + 1
-            if s.aimbotStreak >= CFG.AIMBOT_CONSEC and not reason then
-                reason = ('aimbot (×%d через стену)'):format(s.aimbotStreak)
-            end
-        else
-            -- Плавно снижаем streak (не сбрасываем в 0 от одного кадра)
-            if s.aimbotStreak > 0 then s.aimbotStreak = s.aimbotStreak - 1 end
-        end
-    else
-        -- АФК — луч «гаснет»
-        s.aimbotStreak = 0
-    end
-
-    -- Обновляем состояние
-    s.pos  = pos
-    s.time = now
-
-    return reason
-end
-
-local function runAutoLoop()
-    while autoDetectEnabled do
-        for _, pl in ipairs(Players:GetPlayers()) do
-            if pl ~= lp and not isMarked(pl) then
-                local ok, r = pcall(detectOne, pl)
-                if ok and r then
-                    marked[pl.UserId] = {player=pl, conns={}, reason=r}
-                    logCheater(pl, r)
-                    startPunish(pl)
-                    notify('⚠ Mythos — ЧИТЕР!', pl.Name..'\n'..r)
-                end
-            end
-        end
-        task.wait(CFG.CHECK_DT)
-    end
-end
-
-addcmd('automarkcheat',{'autoac','anticheat','ac','autocheats'},function(args,speaker)
-    autoDetectEnabled = not autoDetectEnabled
-    if autoDetectEnabled then
-        task.spawn(runAutoLoop)
-        notify('Mythos AC','🟢 Авто-детект ВКЛЮЧЁН')
-    else
-        notify('Mythos AC','🔴 Авто-детект ВЫКЛЮЧЕН')
-    end
-end)
-
--- Очистка при уходе игрока
-Players.PlayerRemoving:Connect(function(pl)
-    pstate[pl.UserId] = nil
-    if isMarked(pl) then pcall(stopPunish, pl) end
-end)
-
-notify('Mythos AC v3','✅ Загружен\nmarkcheat / automarkcheat / partcontrol / partrain / unmarkall')
 end
 
