@@ -2813,6 +2813,8 @@ defaultsettings = {
 	keepIY = true;
 	logsEnabled = false;
 	jLogsEnabled = false;
+	freecamBind = 'P';
+	freecamKeys = nil;
 	aliases = {};
 	binds = {};
 	WayPoints = {};
@@ -2854,6 +2856,14 @@ function saves()
 					if json.currentText2 ~= nil then currentText2 = Color3.new(json.currentText2[1],json.currentText2[2],json.currentText2[3]) end
 					if json.currentScroll ~= nil then currentScroll = Color3.new(json.currentScroll[1],json.currentScroll[2],json.currentScroll[3]) end
 					if json.eventBinds ~= nil then loadedEventData = json.eventBinds end
+					if json.freecamBind ~= nil then
+						_G.MYTHOS_FC_CFG = _G.MYTHOS_FC_CFG or {}
+						_G.MYTHOS_FC_CFG.toggle = json.freecamBind
+					end
+					if type(json.freecamKeys) == "table" then
+						_G.MYTHOS_FC_CFG = _G.MYTHOS_FC_CFG or {}
+						_G.MYTHOS_FC_CFG.keys = json.freecamKeys
+					end
 				end)
 				if not success then
 					warn("Save Json Error:", response)
@@ -2999,7 +3009,9 @@ function updatesaves()
 			currentText1 = {currentText1.R,currentText1.G,currentText1.B};
 			currentText2 = {currentText2.R,currentText2.G,currentText2.B};
 			currentScroll = {currentScroll.R,currentScroll.G,currentScroll.B};
-			eventBinds = eventEditor.SaveData()
+			eventBinds = eventEditor.SaveData();
+			freecamBind = (fcConfig and fcConfig.toggle) or 'P';
+			freecamKeys = (fcConfig and fcConfig.keys) or nil;
 		}
 		writefileCooldown("IY_FE.iy", HttpService:JSONEncode(update))
 	end
@@ -4426,6 +4438,9 @@ CMDs[#CMDs + 1] = {NAME = 'unfreecam / unfc', DESC = 'Disables freecam'}
 CMDs[#CMDs + 1] = {NAME = 'freecamspeed / fcspeed [num]', DESC = 'Adjusts freecam speed (default is 1)'}
 CMDs[#CMDs + 1] = {NAME = 'notifyfreecamposition / notifyfcpos', DESC = 'Noitifies you your freecam coordinates'}
 CMDs[#CMDs + 1] = {NAME = 'copyfreecamposition / copyfcpos', DESC = 'Copies your freecam coordinates to your clipboard'}
+CMDs[#CMDs + 1] = {NAME = 'freecambind / fcbind [key]', DESC = 'Меняет хоткей фрикама (Shift + key, по умолч. P)'}
+CMDs[#CMDs + 1] = {NAME = 'freecamkey / fck <move> [key]', DESC = 'Меняет клавиши движения фрикама (forward/back/left/right/up/down + W/A/S/D/Q/E)'}
+CMDs[#CMDs + 1] = {NAME = 'freecamsens / fcsens [num]', DESC = 'Чувствительность мыши фрикама'}
 CMDs[#CMDs + 1] = {NAME = 'gotocamera / gotocam', DESC = 'Teleports you to the location of your camera'}
 CMDs[#CMDs + 1] = {NAME = 'tweengotocam / tgotocam', DESC = 'Tweens you to the location of your camera'}
 CMDs[#CMDs + 1] = {NAME = 'firstp', DESC = 'Forces camera to go into first person'}
@@ -4483,6 +4498,10 @@ CMDs[#CMDs + 1] = {NAME = 'brightness [num] (CLIENT)', DESC = 'Changes the brigh
 CMDs[#CMDs + 1] = {NAME = 'globalshadows / gshadows (CLIENT)', DESC = 'Enables global shadows'}
 CMDs[#CMDs + 1] = {NAME = 'noglobalshadows / nogshadows (CLIENT)', DESC = 'Disables global shadows'}
 CMDs[#CMDs + 1] = {NAME = 'restorelighting / rlighting', DESC = 'Restores Lighting properties'}
+CMDs[#CMDs + 1] = {NAME = 'lightfix / fixlight', DESC = 'Чинит мега-яркое освещение (клип Brightness/Exposure + ватчдог). lightfix off = выкл'}
+CMDs[#CMDs + 1] = {NAME = 'unlightfix', DESC = 'Выключает ватчдог lightfix'}
+CMDs[#CMDs + 1] = {NAME = 'betterfps / bfps', DESC = 'Убирает ВСЕ текстуры постоянно + рендер-оптимизация (меньше лагов). betterfps off = стоп'}
+CMDs[#CMDs + 1] = {NAME = 'unbetterfps / stopbetterfps', DESC = 'Останавливает betterfps'}
 CMDs[#CMDs + 1] = {NAME = 'light [radius] [brightness] (CLIENT)', DESC = 'Gives your player dynamic light'}
 CMDs[#CMDs + 1] = {NAME = 'nolight / unlight', DESC = 'Removes dynamic light from your player'}
 CMDs[#CMDs + 1] = {NAME = '', DESC = ''}
@@ -4527,7 +4546,8 @@ CMDs[#CMDs + 1] = {NAME = 'loopoof', DESC = 'Loops everyones character sounds (e
 CMDs[#CMDs + 1] = {NAME = 'unloopoof', DESC = 'Stops the oof chaos'}
 CMDs[#CMDs + 1] = {NAME = 'muteboombox [plr]', DESC = 'Mutes someones boombox'}
 CMDs[#CMDs + 1] = {NAME = 'unmuteboombox [plr]', DESC = 'Unmutes someones boombox'}
-CMDs[#CMDs + 1] = {NAME = 'hitbox [plr] [size]', DESC = 'Expands the hitbox for players HumanoidRootPart (default is 1)'}
+CMDs[#CMDs + 1] = {NAME = 'hitbox [plr] [множитель]', DESC = 'Расширяет ВСЕ части тела игрока (hb). Для hitscan-игр'}
+CMDs[#CMDs + 1] = {NAME = 'unhitbox / unhb', DESC = 'Сбросить все расширенные хитбоксы'}
 CMDs[#CMDs + 1] = {NAME = 'headsize [plr] [size]', DESC = 'Expands the head size for players Head (default is 1)'}
 CMDs[#CMDs + 1] = {NAME = '', DESC = ''}
 CMDs[#CMDs + 1] = {NAME = 'reset', DESC = 'Resets your character normally'}
@@ -4687,6 +4707,12 @@ CMDs[#CMDs + 1] = {NAME = 'decompile / decr [имя]', DESC = 'Декомпил�
 CMDs[#CMDs + 1] = {NAME = 'killgui / kg', DESC = 'Разблокировать мышь и уничтожить GUI игры (токгл)'}
 CMDs[#CMDs + 1] = {NAME = 'tospawn / safe', DESC = 'Вернуть на спавн/лобби + разблок мыши (если виснешь в воздухе)'}
 CMDs[#CMDs + 1] = {NAME = 'setlobby / slobby', DESC = 'Сохранить текущую точку как лобби'}
+CMDs[#CMDs + 1] = {NAME = 'addcheater / watch [plr] [причина]', DESC = 'Записать читера в список (Mythos/watchlist.json)'}
+CMDs[#CMDs + 1] = {NAME = 'removecheater / unwatch [plr]', DESC = 'Убрать читера из списка'}
+CMDs[#CMDs + 1] = {NAME = 'listwatch / wl', DESC = 'Показать список читеров (ESP навешивается при входе)'}
+CMDs[#CMDs + 1] = {NAME = 'unwatchall / clearwatch', DESC = 'Очистить список читеров'}
+CMDs[#CMDs + 1] = {NAME = 'aimlock / aim', DESC = 'Автонаведение прицела (плавное). Бинд G'}
+CMDs[#CMDs + 1] = {NAME = 'aimfov / aimsmooth / aimpart', DESC = 'Настройки aimlock: радиус / плавность / head-torso'}
 wait()
 
 for i = 1, #CMDs do
@@ -5424,6 +5450,10 @@ Cmdbar.PlaceholderText = "Command Bar ("..prefix..")"
 Cmdbar:GetPropertyChangedSignal("Text"):Connect(function()
 	if Cmdbar:IsFocused() then
 		IndexContents(Cmdbar.Text,true,true)
+		-- не даём панели уезжать вниз при вводе, чтобы подсказки были видны
+		if StayOpen == false then
+			Holder:TweenPosition(UDim2.new(1, Holder.Position.X.Offset, 1, -220), "InOut", "Quart", 0.2, true, nil)
+		end
 	end
 end)
 
@@ -5506,6 +5536,9 @@ do
 		end
 		PSug.CanvasSize = UDim2.new(0,0,0, psLayout.AbsoluteContentSize.Y)
 		PSug.Visible = true
+		if StayOpen == false then
+			Holder:TweenPosition(UDim2.new(1, Holder.Position.X.Offset, 1, -220), "InOut", "Quart", 0.2, true, nil)
+		end
 	end
 
 	Cmdbar:GetPropertyChangedSignal("Text"):Connect(refresh)
@@ -7118,6 +7151,64 @@ addcmd('nightvision',{'nv','gammabright'},function(args, speaker)
 	notify('NightVision','Включено')
 end)
 
+addcmd('lightfix',{'fixlight','fixbrightness','resetalight'},function(args, speaker)
+	local mode = args[1] and args[1]:lower() or nil
+	if _G.MYTHOS_NV then
+		execCmd('nightvision')
+	end
+	execCmd('unloopfullbright')
+	Lighting.Brightness = math.clamp(Lighting.Brightness, 0.5, 2.5)
+	pcall(function()
+		if Lighting:FindFirstChildOfClass("Atmosphere") then
+			Lighting.ExposureCompensation = math.clamp(Lighting.ExposureCompensation or 0, -1, 0.5)
+		end
+	end)
+	for _, cc in ipairs(Lighting:GetDescendants()) do
+		if cc:IsA("ColorCorrectionEffect") then
+			cc.Brightness = math.min(cc.Brightness or 0, 0.1)
+		end
+	end
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
+	if bloom then
+		bloom.Intensity = math.min(bloom.Intensity or 0, 1.5)
+		bloom.Threshold = math.max(bloom.Threshold or 0, 0.5)
+	end
+	if mode == 'off' then
+		if _G.MYTHOS_LIGHTFIX then
+			pcall(function() _G.MYTHOS_LIGHTFIX:Disconnect() end)
+			_G.MYTHOS_LIGHTFIX = nil
+		end
+		return notify('LightFix','Освещение починено, ватчдог выключен (lightfix — вкл обратно)')
+	end
+	if not _G.MYTHOS_LIGHTFIX then
+		_G.MYTHOS_LIGHTFIX = RunService.RenderStepped:Connect(function()
+			pcall(function()
+				if Lighting.Brightness > 2.5 or Lighting.Brightness < 0.5 then
+					Lighting.Brightness = math.clamp(Lighting.Brightness, 0.5, 2.5)
+				end
+				if Lighting:FindFirstChildOfClass("Atmosphere") then
+					local ex = Lighting.ExposureCompensation or 0
+					if ex > 0.5 then Lighting.ExposureCompensation = 0.5 end
+				end
+				for _, cc in ipairs(Lighting:GetDescendants()) do
+					if cc:IsA("ColorCorrectionEffect") and cc.Brightness and cc.Brightness > 0.1 then
+						cc.Brightness = 0.1
+					end
+				end
+			end)
+		end)
+	end
+	notify('LightFix','Освещение починено. Ватчдог защиты от пересвета вкл (lightfix off — выкл)')
+end)
+
+addcmd('unlightfix',{'lightfixoff','stoplightfix'},function(args, speaker)
+	if _G.MYTHOS_LIGHTFIX then
+		pcall(function() _G.MYTHOS_LIGHTFIX:Disconnect() end)
+		_G.MYTHOS_LIGHTFIX = nil
+	end
+	notify('LightFix','Ватчдог яркости выключен')
+end)
+
 addcmd('killnpc',{'knpc','killallnpc'},function(args, speaker)
 	local playerChars = {}
 	for _, pl in ipairs(Players:GetPlayers()) do
@@ -8302,6 +8393,100 @@ addcmd('antilag',{'boostfps','lowgraphics'},function(args, speaker)
 	end)
 end)
 
+-- betterfps: убрать ВСЕ текстуры постоянно + рендер-оптимизация
+local betterFps = { on = false, conns = {} }
+local function bfClean(inst)
+	pcall(function()
+		if inst:IsA("BasePart") then
+			if inst.Material ~= Enum.Material.SmoothPlastic then
+				inst.Material = Enum.Material.SmoothPlastic
+			end
+			if inst.Reflectance > 0 then inst.Reflectance = 0 end
+		elseif inst:IsA("Decal") then
+			inst.Transparency = 1
+		elseif inst:IsA("Texture") then
+			inst.Transparency = 1
+		elseif inst:IsA("SurfaceAppearance") then
+			inst:Destroy()
+		elseif inst:IsA("ParticleEmitter") or inst:IsA("Trail") then
+			inst.Enabled = false
+			pcall(function() inst.Rate = 0 end)
+		elseif inst:IsA("Explosion") then
+			inst.BlastPressure = 1
+			inst.BlastRadius = 1
+		elseif inst:IsA("ForceField") or inst:IsA("Sparkles") or inst:IsA("Fire") or inst:IsA("Smoke") then
+			inst:Destroy()
+		elseif inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight") then
+			pcall(function() inst.Shadows = false end)
+		end
+	end)
+end
+local function bfSweep()
+	local n = 0
+	for _, v in ipairs(game:GetDescendants()) do
+		if v:IsA("Decal") or v:IsA("Texture") or v:IsA("SurfaceAppearance") or v:IsA("ParticleEmitter") or v:IsA("Trail") then
+			bfClean(v)
+			n = n + 1
+		end
+	end
+	return n
+end
+local function bfStart()
+	if betterFps.on then return false end
+	betterFps.on = true
+	betterFps.conns[#betterFps.conns+1] = game.DescendantAdded:Connect(function(child)
+		task.defer(function()
+			if child and child.Parent then bfClean(child) end
+		end)
+	end)
+	local acc = 0
+	betterFps.conns[#betterFps.conns+1] = RunService.Heartbeat:Connect(function(dt)
+		acc = acc + (dt or 0)
+		if acc >= 2 then
+			acc = 0
+			bfSweep()
+		end
+	end)
+	return true
+end
+local function bfStop()
+	betterFps.on = false
+	for _, c in ipairs(betterFps.conns) do pcall(function() c:Disconnect() end) end
+	betterFps.conns = {}
+end
+
+addcmd('betterfps',{'bfps','maximumfps','fpsboost'},function(args, speaker)
+	local mode = args[1] and args[1]:lower() or nil
+	if mode == 'off' then bfStop(); notify('BetterFPS','Остановлено'); return end
+	pcall(function() settings().Rendering.QualityLevel = 1 end)
+	local Terrain = workspace:FindFirstChildOfClass('Terrain')
+	if Terrain then
+		Terrain.WaterWaveSize = 0
+		Terrain.WaterWaveSpeed = 0
+		Terrain.WaterReflectance = 0
+		Terrain.WaterTransparency = 0
+		local clouds = Terrain:FindFirstChildOfClass("Clouds")
+		if clouds then clouds.Enabled = false end
+	end
+	Lighting.GlobalShadows = false
+	Lighting.FogEnd = 9e9
+	for i,v in pairs(Lighting:GetDescendants()) do
+		if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
+			v.Enabled = false
+		end
+	end
+	local first = bfStart()
+	local n = bfSweep()
+	notify('BetterFPS', (first and 'Включено' or 'Уже работало')..' — очищено текстур: '..n..' (betterfps off / unbetterfps = стоп)')
+end)
+
+addcmd('unbetterfps',{'stopbetterfps','betterfpsoff'},function(args, speaker)
+	bfStop()
+	local ql = "?"
+	pcall(function() ql = tostring(settings().Rendering.QualityLevel) end)
+	notify('BetterFPS','Остановлено. Quality: '..ql)
+end)
+
 addcmd('setfpscap', {'fpscap', 'maxfps'}, function(args, speaker)
 	if setfpscap and type(setfpscap) == "function" then
 		local num = args[1] or 1e6
@@ -8531,256 +8716,283 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 	end
 end)
 
-local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
+-- ============================================================
+-- FREECAM (Quenty, заменён на версию из "Press Shift + P.rbxmx")
+-- Shift + <bind> = вкл/выкл (по умолчанию Shift + P)
+-- WASD/QE движение, колесо = зум, удерж. ПКМ = вращение,
+-- Shift = медленно, Ctrl = быстро. Бинды меняются командами:
+--   ;freecambind <key>        -- сменить хоткей (Shift+key)
+--   ;freecamkey <move> <key>  -- сменить клавишу движения
+--   ;freecamsens <num>        -- чувствительность мыши
+-- ============================================================
+fcConfig = _G.MYTHOS_FC_CFG or {}
+fcConfig.toggle = fcConfig.toggle or "P"
+fcConfig.keys = fcConfig.keys or {
+	left     = {"A", "H"},
+	right    = {"D", "K"},
+	forward  = {"W", "U"},
+	backward = {"S", "J"},
+	up       = {"Q", "Y"},
+	down     = {"E", "I"},
+}
+fcConfig.speed = fcConfig.speed or 1
+fcConfig.sens  = fcConfig.sens  or 1
 
-Spring = {} do
-	Spring.__index = Spring
+local FC_KeyCodeName = {
+	left     = {"A", "H"},
+	right    = {"D", "K"},
+	forward  = {"W", "U"},
+	backward = {"S", "J"},
+	up       = {"Q", "Y"},
+	down     = {"E", "I"},
+}
 
-	function Spring.new(freq, pos)
-		local self = setmetatable({}, Spring)
-		self.f = freq
-		self.p = pos
-		self.v = pos*0
+-- Spring (Quenty damping model)
+FCSpring = {} do
+	FCSpring.__index = FCSpring
+	function FCSpring.new(stiffness, dampingCoeff, dampingRatio, initialPos)
+		local self = setmetatable({}, FCSpring)
+		dampingRatio = dampingRatio or 1
+		local m = dampingCoeff*dampingCoeff/(4*stiffness*dampingRatio*dampingRatio)
+		self.k = stiffness/m
+		self.d = -dampingCoeff/m
+		self.x = initialPos
+		self.t = initialPos
+		self.v = initialPos*0
 		return self
 	end
-
-	function Spring:Update(dt, goal)
-		local f = self.f*2*math.pi
-		local p0 = self.p
-		local v0 = self.v
-
-		local offset = goal - p0
-		local decay = math.exp(-f*dt)
-
-		local p1 = goal + (v0*dt - offset*(f*dt + 1))*decay
-		local v1 = (f*dt*(offset*f - v0) + v0)*decay
-
-		self.p = p1
-		self.v = v1
-
-		return p1
+	function FCSpring:Update(dt)
+		local t, k, d, x0, v0 = self.t, self.k, self.d, self.x, self.v
+		local a0 = k*(t - x0) + v0*d
+		local v1 = v0 + a0*(dt/2)
+		local a1 = k*(t - (x0 + v0*(dt/2))) + v1*d
+		local v2 = v0 + a1*(dt/2)
+		local a2 = k*(t - (x0 + v1*(dt/2))) + v2*d
+		local v3 = v0 + a2*dt
+		local x4 = x0 + (v0 + 2*(v1 + v2) + v3)*(dt/6)
+		self.x, self.v = x4, v0 + (a0 + 2*(a1 + a2) + k*(t - (x0 + v2*dt)) + v3*d)*(dt/6)
+		return x4
 	end
-
-	function Spring:Reset(pos)
-		self.p = pos
-		self.v = pos*0
+	function FCSpring:Reset(pos)
+		self.x, self.v = pos, pos*0
+		self.t = pos
 	end
 end
 
-local cameraPos = Vector3.new()
-local cameraRot = Vector2.new()
+local FC = {
+	StateRot = Vector2.new(),
+	panMouse = Vector2.new(),
+	statePos = Vector3.new(),
+	vel = FCSpring.new(7/9, 1/3, 1, Vector3.new()),
+	rot = FCSpring.new(7/9, 1/3, 1, Vector2.new()),
+	fov = FCSpring.new(2, 1/3, 1, 70),
+	rateFov = 0,
+	savedFov = 70,
+	savedCameraType = nil,
+	hiddenGuis = {},
+	padX = 0, padY = 0, padL2 = 0, padR2 = 0,
+	conns = {},
+}
+local FC_OnInputConn = nil
 
-local velSpring = Spring.new(5, Vector3.new())
-local panSpring = Spring.new(5, Vector2.new())
+local function FC_Clamp(x, mn, mx)
+	return x < mn and mn or x > mx and mx or x
+end
 
-Input = {} do
+local function FC_DirectionDown(list)
+	for _, k in ipairs(list) do
+		local kc = Enum.KeyCode[tostring(k)]
+		if kc and UserInputService:IsKeyDown(kc) then
+			return true
+		end
+	end
+	return false
+end
 
-	keyboard = {
-		W = 0,
-		A = 0,
-		S = 0,
-		D = 0,
-		E = 0,
-		Q = 0,
-		Up = 0,
-		Down = 0,
-		LeftShift = 0,
-	}
+local function FC_InputCurve(x)
+	local s = math.abs(x)
+	if s > 0.125 then
+		s = 0.255000975*(2^(2.299113817*s) - 1)
+		return x > 0 and (s > 1 and 1 or s) or (s > 1 and -1 or -s)
+	end
+	return 0
+end
 
-	mouse = {
-		Delta = Vector2.new(),
-	}
+-- событие: геймпад + колесо мыши
+local function FC_ProcessInput(input)
+	local ut = input.UserInputType
+	if ut == Enum.UserInputType.Gamepad1 then
+		local kc = input.KeyCode
+		if kc == Enum.KeyCode.Thumbstick2 then
+			local p = input.Position
+			local pan = Vector2.new(FC_InputCurve(p.Y), FC_InputCurve(-p.X))*7
+			FC.panMouse = FC.panMouse + pan
+		elseif kc == Enum.KeyCode.Thumbstick1 then
+			local p = input.Position
+			FC.padX = FC_InputCurve(p.X)
+			FC.padY = FC_InputCurve(-p.Y)
+		elseif kc == Enum.KeyCode.ButtonL2 then
+			FC.padL2 = input.Position.Z
+		elseif kc == Enum.KeyCode.ButtonR2 then
+			FC.padR2 = input.Position.Z
+		end
+	elseif ut == Enum.UserInputType.MouseWheel then
+		FC.rateFov = input.Position.Z
+	end
+end
+table.insert(FC.conns, UserInputService.InputChanged:Connect(FC_ProcessInput))
+table.insert(FC.conns, UserInputService.InputEnded:Connect(FC_ProcessInput))
+table.insert(FC.conns, UserInputService.InputBegan:Connect(FC_ProcessInput))
 
-	NAV_KEYBOARD_SPEED = Vector3.new(1, 1, 1)
-	PAN_MOUSE_SPEED = Vector2.new(1, 1)*(math.pi/64)
-	NAV_ADJ_SPEED = 0.75
-	NAV_SHIFT_MUL = 0.25
+local function FC_Update(dt)
+	local cam = Camera
+	if not cam then return end
 
-	navSpeed = 1
-
-	function Input.Vel(dt)
-		navSpeed = math.clamp(navSpeed + dt*(keyboard.Up - keyboard.Down)*NAV_ADJ_SPEED, 0.01, 4)
-
-		local kKeyboard = Vector3.new(
-			keyboard.D - keyboard.A,
-			keyboard.E - keyboard.Q,
-			keyboard.S - keyboard.W
-		)*NAV_KEYBOARD_SPEED
-
-		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-
-		return (kKeyboard)*(navSpeed*(shift and NAV_SHIFT_MUL or 1))
+	local kx = (FC_DirectionDown(fcConfig.keys.right) and 1 or 0) - (FC_DirectionDown(fcConfig.keys.left) and 1 or 0)
+	local ky = (FC_DirectionDown(fcConfig.keys.up) and 1 or 0) - (FC_DirectionDown(fcConfig.keys.down) and 1 or 0)
+	local kz = (FC_DirectionDown(fcConfig.keys.backward) and 1 or 0) - (FC_DirectionDown(fcConfig.keys.forward) and 1 or 0)
+	local km = kx*kx + ky*ky + kz*kz
+	if km > 1e-15 then
+		local slow = 1
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+			slow = 1/4
+		elseif UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			slow = 3
+		end
+		km = slow/math.sqrt(km)
+		kx = kx*km; ky = ky*km; kz = kz*km
 	end
 
-	function Input.Pan(dt)
-		local kMouse = mouse.Delta*PAN_MOUSE_SPEED
-		mouse.Delta = Vector2.new()
-		return kMouse
-	end
+	local dx = kx + FC.padX
+	local dy = ky + FC.padR2 - FC.padL2
+	local dz = kz + FC.padY
 
-	do
-		function Keypress(action, state, input)
-			keyboard[input.KeyCode.Name] = state == Enum.UserInputState.Begin and 1 or 0
-			return Enum.ContextActionResult.Sink
-		end
+	FC.vel.t = Vector3.new(dx, dy, dz) * fcConfig.speed
+	FC.rot.t = FC.panMouse
+	FC.fov.t = FC_Clamp(FC.fov.t + dt*FC.rateFov*(-330), 5, 120)
 
-		function MousePan(action, state, input)
-			local delta = input.Delta
-			mouse.Delta = Vector2.new(-delta.y, -delta.x)
-			return Enum.ContextActionResult.Sink
-		end
+	local fov  = FC.fov:Update(dt)
+	local dPos = FC.vel:Update(dt) * Vector3.new(1, 0.75, 1)
+	local dRot = FC.rot:Update(dt) * (Vector2.new(0.85, 1)/128) * (math.tan(fov*math.pi/360)/math.tan(35*math.pi/180))
 
-		function Zero(t)
-			for k, v in pairs(t) do
-				t[k] = v*0
+	FC.rateFov = 0
+	FC.panMouse = Vector2.new()
+
+	FC.StateRot = FC.StateRot + dRot
+	FC.StateRot = Vector2.new(FC_Clamp(FC.StateRot.X, -3/2, 3/2), FC.StateRot.Y)
+
+	local c = CFrame.new(FC.statePos) * CFrame.Angles(0, FC.StateRot.Y, 0) * CFrame.Angles(FC.StateRot.X, 0, 0) * CFrame.new(dPos)
+	FC.statePos = c.p
+	cam.CFrame = c
+	cam.Focus = c * CFrame.new(0, 0, -16)
+	cam.FieldOfView = fov
+end
+
+-- удержание ПКМ = вращение камеры
+local function FC_OnInput(input, processed)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		if not processed then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+			local conn = UserInputService.InputChanged:Connect(function(i, ip)
+				if not ip and i.UserInputType == Enum.UserInputType.MouseMovement then
+					local d = i.Delta
+					FC.panMouse = FC.panMouse + Vector2.new(-d.Y, -d.X)
+				end
+			end)
+			repeat
+				input = UserInputService.InputEnded:Wait()
+			until input.UserInputType == Enum.UserInputType.MouseButton2 or not fcRunning
+			FC.panMouse = Vector2.new()
+			conn:Disconnect()
+			if fcRunning then
+				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 			end
 		end
-
-		function Input.StartCapture()
-			ContextActionService:BindActionAtPriority("FreecamKeyboard",Keypress,false,INPUT_PRIORITY,
-				Enum.KeyCode.W,
-				Enum.KeyCode.A,
-				Enum.KeyCode.S,
-				Enum.KeyCode.D,
-				Enum.KeyCode.E,
-				Enum.KeyCode.Q,
-				Enum.KeyCode.Up,
-				Enum.KeyCode.Down
-			)
-			ContextActionService:BindActionAtPriority("FreecamMousePan",MousePan,false,INPUT_PRIORITY,Enum.UserInputType.MouseMovement)
-		end
-
-		function Input.StopCapture()
-			navSpeed = 1
-			Zero(keyboard)
-			Zero(mouse)
-			ContextActionService:UnbindAction("FreecamKeyboard")
-			ContextActionService:UnbindAction("FreecamMousePan")
-		end
 	end
 end
+table.insert(FC.conns, UserInputService.InputBegan:Connect(function(input, processed)
+	if fcRunning then FC_OnInput(input, processed) end
+end))
 
-function GetFocusDistance(cameraFrame)
-	local znear = 0.1
-	local viewport = Camera.ViewportSize
-	local projy = 2*math.tan(cameraFov/2)
-	local projx = viewport.x/viewport.y*projy
-	local fx = cameraFrame.rightVector
-	local fy = cameraFrame.upVector
-	local fz = cameraFrame.lookVector
-
-	local minVect = Vector3.new()
-	local minDist = 512
-
-	for x = 0, 1, 0.5 do
-		for y = 0, 1, 0.5 do
-			local cx = (x - 0.5)*projx
-			local cy = (y - 0.5)*projy
-			local offset = fx*cx - fy*cy + fz
-			local origin = cameraFrame.p + offset*znear
-			local _, hit = workspace:FindPartOnRay(Ray.new(origin, offset.unit*minDist))
-			local dist = (hit - origin).magnitude
-			if minDist > dist then
-				minDist = dist
-				minVect = offset.unit
+local function FC_SaveGuis()
+	FC.hiddenGuis = {}
+	local pg = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
+	if pg then
+		for _, obj in ipairs(pg:GetChildren()) do
+			if obj:IsA("ScreenGui") and obj.Enabled then
+				obj.Enabled = false
+				table.insert(FC.hiddenGuis, obj)
 			end
 		end
-	end
-
-	return fz:Dot(minVect)*minDist
-end
-
-local function StepFreecam(dt)
-	local vel = velSpring:Update(dt, Input.Vel(dt))
-	local pan = panSpring:Update(dt, Input.Pan(dt))
-
-	local zoomFactor = math.sqrt(math.tan(math.rad(70/2))/math.tan(math.rad(cameraFov/2)))
-
-	cameraRot = cameraRot + pan*Vector2.new(0.75, 1)*8*(dt/zoomFactor)
-	cameraRot = Vector2.new(math.clamp(cameraRot.x, -math.rad(90), math.rad(90)), cameraRot.y%(2*math.pi))
-
-	local cameraCFrame = CFrame.new(cameraPos)*CFrame.fromOrientation(cameraRot.x, cameraRot.y, 0)*CFrame.new(vel*Vector3.new(1, 1, 1)*64*dt)
-	cameraPos = cameraCFrame.p
-
-	Camera.CFrame = cameraCFrame
-	Camera.Focus = cameraCFrame*CFrame.new(0, 0, -GetFocusDistance(cameraCFrame))
-	Camera.FieldOfView = cameraFov
-end
-
-local PlayerState = {} do
-	mouseBehavior = ""
-	mouseIconEnabled = ""
-	cameraType = ""
-	cameraFocus = ""
-	cameraCFrame = ""
-	cameraFieldOfView = ""
-
-	function PlayerState.Push()
-		cameraFieldOfView = Camera.FieldOfView
-		Camera.FieldOfView = 70
-
-		cameraType = Camera.CameraType
-		Camera.CameraType = Enum.CameraType.Custom
-
-		cameraCFrame = Camera.CFrame
-		cameraFocus = Camera.Focus
-
-		mouseIconEnabled = UserInputService.MouseIconEnabled
-		UserInputService.MouseIconEnabled = true
-
-		mouseBehavior = UserInputService.MouseBehavior
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-	end
-
-	function PlayerState.Pop()
-		Camera.FieldOfView = 70
-
-		Camera.CameraType = cameraType
-		cameraType = nil
-
-		Camera.CFrame = cameraCFrame
-		cameraCFrame = nil
-
-		Camera.Focus = cameraFocus
-		cameraFocus = nil
-
-		UserInputService.MouseIconEnabled = mouseIconEnabled
-		mouseIconEnabled = nil
-
-		UserInputService.MouseBehavior = mouseBehavior
-		mouseBehavior = nil
 	end
 end
 
 function StartFreecam(pos)
-	if fcRunning then
-		StopFreecam()
-	end
-	local cameraCFrame = Camera.CFrame
-	if pos then
-		cameraCFrame = pos
-	end
-	cameraRot = Vector2.new()
-	cameraPos = cameraCFrame.p
-	cameraFov = Camera.FieldOfView
+	if fcRunning then StopFreecam() end
+	local cam = Camera
+	local camCFrame = pos or cam.CFrame
+	local lookVector = camCFrame.lookVector.unit
 
-	velSpring:Reset(Vector3.new())
-	panSpring:Reset(Vector2.new())
+	FC.StateRot = Vector2.new(
+		math.asin(lookVector.Y),
+		math.atan2(-lookVector.Z, lookVector.X) - math.pi/2
+	)
+	FC.statePos = camCFrame.p
+	FC.savedFov = cam.FieldOfView
+	FC.fov = FCSpring.new(2, 1/3, 1, cam.FieldOfView)
+	FC.vel:Reset(Vector3.new())
+	FC.rot:Reset(Vector2.new())
+	FC.panMouse = Vector2.new()
+	FC.padX = 0; FC.padY = 0; FC.padL2 = 0; FC.padR2 = 0
+	FC.rateFov = 0
 
-	PlayerState.Push()
-	RunService:BindToRenderStep("Freecam", Enum.RenderPriority.Camera.Value, StepFreecam)
-	Input.StartCapture()
+	UserInputService.MouseIconEnabled = true
+	FC.savedCameraType = cam.CameraType
+	cam.CameraType = Enum.CameraType.Scriptable
+	FC_SaveGuis()
+
+	RunService:BindToRenderStep("Freecam", Enum.RenderPriority.Camera.Value, function(dt)
+		FC_Update(math.min(dt, 0.1))
+	end)
 	fcRunning = true
 end
 
 function StopFreecam()
 	if not fcRunning then return end
-	Input.StopCapture()
-	RunService:UnbindFromRenderStep("Freecam")
-	PlayerState.Pop()
-	workspace.Camera.FieldOfView = 70
 	fcRunning = false
+	RunService:UnbindFromRenderStep("Freecam")
+	for i = 1, #FC.conns do pcall(function() FC.conns[i]:Disconnect() end) end
+	FC.conns = {}
+	FC_OnInputConn = nil
+	UserInputService.MouseIconEnabled = true
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	local cam = Camera
+	pcall(function()
+		cam.CameraType = FC.savedCameraType or Enum.CameraType.Custom
+		cam.FieldOfView = FC.savedFov
+	end)
+	for _, obj in ipairs(FC.hiddenGuis) do
+		if obj and obj.Parent then obj.Enabled = true end
+	end
+	FC.hiddenGuis = {}
 end
+
+-- хоткей Shift + bind
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then return end
+	local kc = Enum.KeyCode[tostring(fcConfig.toggle)]
+	if kc and input.KeyCode == kc then
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+			if fcRunning then
+				StopFreecam()
+			else
+				StartFreecam()
+			end
+		end
+	end
+end)
 
 addcmd('freecam',{'fc'},function(args, speaker)
 	StartFreecam()
@@ -8823,10 +9035,72 @@ addcmd('unfreecam',{'nofreecam','unfc','nofc'},function(args, speaker)
 end)
 
 addcmd('freecamspeed',{'fcspeed'},function(args, speaker)
-	local FCspeed = args[1] or 1
-	if isNumber(FCspeed) then
-		NAV_KEYBOARD_SPEED = Vector3.new(FCspeed, FCspeed, FCspeed)
+	local FCspeed = tonumber(args[1]) or 1
+	fcConfig.speed = math.max(0.05, FCspeed)
+	notify('FreecamSpeed','Скорость фрикама: '..fcConfig.speed)
+end)
+
+addcmd('freecambind',{'fcbind','setfcbind'},function(args, speaker)
+	local k = args[1] and args[1]:upper() or nil
+	if not k then
+		return notify('FreecamBind','Хоткей: Shift + '..tostring(fcConfig.toggle)..'  |  freecambind <key> / freecambind reset')
 	end
+	if k == 'RESET' then k = 'P' end
+	if Enum.KeyCode[k] then
+		fcConfig.toggle = k
+		_G.MYTHOS_FC_CFG = fcConfig
+		updatesaves()
+		notify('FreecamBind','Хоткей фрикама: LeftShift + '..k)
+	else
+		notify('FreecamBind','Нет такой клавиши: '..tostring(args[1]))
+	end
+end)
+
+addcmd('freecamkey',{'fck','fckey','freecamkeys'},function(args, speaker)
+	local action = args[1] and args[1]:lower() or nil
+	local key = args[2] and args[2]:upper() or nil
+	if not action or action == 'list' then
+		local parts = {}
+		for name, list in pairs(fcConfig.keys) do
+			parts[#parts+1] = name..' = ['..table.concat(list, ',')..']'
+		end
+		notify('FreecamKeys','CLAVI: '..table.concat(parts, '   '))
+		return
+	end
+	if action == 'reset' then
+		fcConfig.keys = {
+			left = {'A','H'}, right = {'D','K'}, forward = {'W','U'},
+			backward = {'S','J'}, up = {'Q','Y'}, down = {'E','I'},
+		}
+		_G.MYTHOS_FC_CFG = fcConfig
+		updatesaves()
+		return notify('FreecamKeys','Клавиши движения сброшены (WASD + QE)')
+	end
+	local dir = ({w='forward',a='left',s='backward',d='right',e='down',q='up'})[action] or action
+	if not fcConfig.keys[dir] then
+		return notify('FreecamKeys','move: forward / back / left / right / up / down (или w,a,s,d,e,q) + клавиша. Или reset')
+	end
+	if not key then
+		return notify('FreecamKeys','Пример: freecamkey '..dir..' W')
+	end
+	if Enum.KeyCode[key] then
+		fcConfig.keys[dir] = {key}
+		_G.MYTHOS_FC_CFG = fcConfig
+		updatesaves()
+		notify('FreecamKeys',dir..' -> '..key)
+	else
+		notify('FreecamKeys','Нет такой клавиши: '..tostring(args[2]))
+	end
+end)
+
+addcmd('freecamsens',{'fcsens','fcsensitivity'},function(args, speaker)
+	local s = tonumber(args[1])
+	if s then
+		fcConfig.sens = math.clamp(s, 0.05, 10)
+		_G.MYTHOS_FC_CFG = fcConfig
+		updatesaves()
+	end
+	notify('FreecamSens','Чувствительность: '..fcConfig.sens)
 end)
 
 addcmd('notifyfreecamposition',{'notifyfcpos'},function(args, speaker)
@@ -12441,24 +12715,54 @@ addcmd('headsize',{},function(args, speaker)
 	end
 end)
 
-addcmd('hitbox',{},function(args, speaker)
+_G.MYTHOS_HITBOX = _G.MYTHOS_HITBOX or {}
+addcmd('hitbox',{'expandhitbox','hb','hitboxexpand'},function(args, speaker)
 	local players = getPlayer(args[1], speaker)
-	for i,v in pairs(players) do
-		if Players[v] ~= speaker and Players[v].Character:FindFirstChild('HumanoidRootPart') then
-			local sizeArg = tonumber(args[2])
-			local Size = Vector3.new(sizeArg,sizeArg,sizeArg)
-			local Root = Players[v].Character:FindFirstChild('HumanoidRootPart')
-			if Root:IsA("BasePart") then
-				if not args[2] or sizeArg == 1 then
-					Root.Size = Vector3.new(2,1,1)
-					Root.Transparency = 0.4
-				else
-					Root.Size = Size
-					Root.Transparency = 0.4
+	local scale = tonumber(args[2]) or 2
+	if scale < 1 then scale = 1 end
+	for _,name in pairs(players) do
+		local plr = Players[name]
+		if plr and plr ~= speaker then
+			local prev = _G.MYTHOS_HITBOX[plr.UserId]
+			if prev and prev.conn then pcall(function() prev.conn:Disconnect() end) end
+			local orig = {}
+			local conn
+			conn = RunService.Heartbeat:Connect(function()
+				local char = plr.Character
+				if not char then return end
+				-- расширяем ВСЕ части тела, а не только HRP:
+				-- hitscan-луч обычно идёт в голову/торс, их и надо делать крупнее
+				for _, p in ipairs(char:GetChildren()) do
+					if p:IsA("BasePart") then
+						if orig[p] == nil then orig[p] = p.Size end
+						local o = orig[p]
+						local target = Vector3.new(
+							math.min(o.X * scale, 150),
+							math.min(o.Y * scale, 150),
+							math.min(o.Z * scale, 150)
+						)
+						if p.Size ~= target then pcall(function() p.Size = target end) end
+					end
 				end
+			end)
+			_G.MYTHOS_HITBOX[plr.UserId] = { conn = conn, plr = plr, orig = orig }
+		end
+	end
+	notify('Hitbox','Хитбокс x'..scale..' на: '..(args[1] or '?'))
+end)
+
+addcmd('unhitbox',{'unhb','nohitbox','clearhitbox'},function(args, speaker)
+	for uid, e in pairs(_G.MYTHOS_HITBOX or {}) do
+		pcall(function() e.conn:Disconnect() end)
+		local char = e.plr and e.plr.Character
+		if char and e.orig then
+			for p, o in pairs(e.orig) do
+				if p and p.Parent then pcall(function() p.Size = o end) end
 			end
 		end
 	end
+	_G.MYTHOS_HITBOX = {}
+	notify('Hitbox','Хитбоксы сброшены')
 end)
 
 addcmd('stareat',{'stare'},function(args, speaker)
@@ -13826,5 +14130,275 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 notify('Mythos AC v2','✅ Загружен. Команды: markcheat / automarkcheat / partcontrol / partrain')
+end
+
+-- ================================================================
+-- MYTHOS WATCHLIST — ручной список читеров (Mythos/watchlist.json).
+-- addcheater/removecheater/listwatch/unwatchall.
+-- При заходе в сервер, где есть читер из списка — на него навешивается ESP.
+-- ================================================================
+do
+	local WATCH_FILE = "Mythos/watchlist.json"
+	local watchESP = {}  -- [userId] = { conn }
+
+	local function ensureMythos()
+		if makefolder and isfolder and not isfolder("Mythos") then pcall(makefolder, "Mythos") end
+	end
+	local function readWatch()
+		ensureMythos()
+		if readfile and isfile and isfile(WATCH_FILE) then
+			local ok, d = pcall(function() return HttpService:JSONDecode(readfile(WATCH_FILE)) end)
+			if ok and type(d) == "table" then return d end
+		end
+		return {}
+	end
+	local function writeWatch(list)
+		ensureMythos()
+		if writefile then
+			local ok, s = pcall(function() return HttpService:JSONEncode(list) end)
+			if ok then pcall(writefile, WATCH_FILE, s) end
+		end
+	end
+	local function rebuildIds(list)
+		_G.MYTHOS_WATCH_IDS = {}
+		for _, e in ipairs(list) do
+			if e.userId then _G.MYTHOS_WATCH_IDS[e.userId] = e end
+		end
+	end
+
+	local function resolveUser(q)
+		q = tostring(q)
+		if tonumber(q) then return tonumber(q) end
+		local ql = q:lower()
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl.Name:lower() == ql or (pl.DisplayName and pl.DisplayName:lower() == ql) then
+				return pl.UserId, pl
+			end
+		end
+		local ok, id = pcall(function() return Players:GetUserIdFromNameAsync(q) end)
+		if ok and id then return id end
+		return nil
+	end
+
+	local function applyWatchESP(plr)
+		if not plr or plr == Players.LocalPlayer or not plr.Parent then return end
+		ESP(plr)
+		if watchESP[plr.UserId] then return end
+		local c
+		c = plr.CharacterAdded:Connect(function()
+			task.wait(1)
+			if _G.MYTHOS_WATCH_IDS and _G.MYTHOS_WATCH_IDS[plr.UserId] then
+				ESP(plr)
+			else
+				c:Disconnect()
+			end
+		end)
+		watchESP[plr.UserId] = { conn = c }
+	end
+	local function removeWatchESP(plr)
+		if watchESP[plr.UserId] then
+			pcall(function() watchESP[plr.UserId].conn:Disconnect() end)
+			watchESP[plr.UserId] = nil
+		end
+		for _, v in ipairs(COREGUI:GetChildren()) do
+			if v.Name == plr.Name..'_ESP' then pcall(function() v:Destroy() end) end
+		end
+	end
+
+	addcmd('addcheater',{'watch','acadd','watchcheater','addwatch'},function(args, speaker)
+		local q = args[1]
+		if not q then return notify('Watchlist','Использование: addcheater [ник / ID] [причина]') end
+		local uid, plr = resolveUser(q)
+		if not uid then return notify('Watchlist','Игрок не найден: '..tostring(q)) end
+		local list = readWatch()
+		for _, e in ipairs(list) do
+			if e.userId == uid then
+				return notify('Watchlist','Уже в списке: '..tostring(e.username))
+			end
+		end
+		local reason = "cheater"
+		if #args >= 2 then
+			local parts = {}
+			for i = 2, #args do table.insert(parts, args[i]) end
+			reason = table.concat(parts, " ")
+		end
+		table.insert(list, {
+			userId = uid,
+			username = (plr and plr.Name) or tostring(q),
+			displayName = (plr and plr.DisplayName) or "",
+			reason = reason,
+			added = os.time(),
+		})
+		writeWatch(list)
+		rebuildIds(list)
+		if plr then applyWatchESP(plr) end
+		notify('Watchlist','Добавлен в список: '..((plr and plr.Name) or tostring(q)))
+	end)
+
+	addcmd('removecheater',{'unwatch','acremove','unwatchcheater','delcheater'},function(args, speaker)
+		local q = args[1]
+		if not q then return notify('Watchlist','Использование: removecheater [ник / ID]') end
+		local uid, plr = resolveUser(q)
+		local list = readWatch()
+		local removed, nl = nil, {}
+		for _, e in ipairs(list) do
+			if e.userId == uid then removed = e else table.insert(nl, e) end
+		end
+		if not removed then return notify('Watchlist','Не найдено в списке') end
+		writeWatch(nl)
+		rebuildIds(nl)
+		if plr then removeWatchESP(plr) end
+		notify('Watchlist','Убран из списка: '..tostring(removed.username))
+	end)
+
+	addcmd('listwatch',{'watchlist','wl'},function(args, speaker)
+		local list = readWatch()
+		if #list == 0 then return notify('Watchlist','Список пуст') end
+		local lines = {}
+		for _, e in ipairs(list) do
+			table.insert(lines, (e.username or '?')..' — '..(e.reason or '?'))
+		end
+		notify('Watchlist ('..#list..')', table.concat(lines, "\n"))
+	end)
+
+	addcmd('unwatchall',{'clearwatch'},function(args, speaker)
+		local list = readWatch()
+		for _, e in ipairs(list) do
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p.UserId == e.userId then removeWatchESP(p) break end
+			end
+		end
+		writeWatch({})
+		_G.MYTHOS_WATCH_IDS = {}
+		notify('Watchlist','Список очищен')
+	end)
+
+	-- инициализация: уже в сервере + при входе новых
+	local function initWatch()
+		local list = readWatch()
+		rebuildIds(list)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if _G.MYTHOS_WATCH_IDS[pl.UserId] then applyWatchESP(pl) end
+		end
+	end
+	initWatch()
+	Players.PlayerAdded:Connect(function(pl)
+		if _G.MYTHOS_WATCH_IDS and _G.MYTHOS_WATCH_IDS[pl.UserId] then
+			task.wait(1)
+			applyWatchESP(pl)
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(pl)
+		if watchESP[pl.UserId] then removeWatchESP(pl) end
+	end)
+end
+
+-- ================================================================
+-- MYTHOS AIMLOCK — плавное наведение прицела на ближайшего к нему
+-- игрока в радиусе FOV. Тоггл: aimlock (или бинд G). Solara-OK
+-- (только математика камеры + Drawing.new, без хуков).
+-- ================================================================
+do
+	local state = {
+		enabled = false,
+		fov = 180,
+		smooth = 0.18,
+		part = "Head",
+		circle = nil,
+		conn = nil,
+	}
+
+	local function ensureCircle()
+		if state.circle then return end
+		pcall(function()
+			state.circle = Drawing.new("Circle")
+			state.circle.Thickness = 1.5
+			state.circle.NumSides = 48
+			state.circle.Filled = false
+			state.circle.Color = Color3.fromRGB(255, 60, 60)
+			state.circle.Transparency = 0.5
+		end)
+	end
+
+	local function getTarget(cam)
+		local cx = cam.ViewportSize.X / 2
+		local cy = cam.ViewportSize.Y / 2
+		local best, bestDist = nil, state.fov
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= Players.LocalPlayer and plr.Character then
+				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+				local part = plr.Character:FindFirstChild(state.part) or plr.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and part then
+					local sp, onScreen = cam:WorldToViewportPoint(part.Position)
+					if onScreen and sp.Z > 0 then
+						local dx, dy = sp.X - cx, sp.Y - cy
+						local dist = math.sqrt(dx * dx + dy * dy)
+						if dist < bestDist then
+							bestDist = dist
+							best = part
+						end
+					end
+				end
+			end
+		end
+		return best
+	end
+
+	local function loop()
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		ensureCircle()
+		if state.circle then
+			state.circle.Visible = true
+			state.circle.Radius = state.fov
+			state.circle.Position = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+		end
+		local target = getTarget(cam)
+		if target then
+			local cf = cam.CFrame
+			if (target.Position - cf.Position).Magnitude > 1 then
+				cam.CFrame = cf:Lerp(CFrame.new(cf.Position, target.Position), state.smooth)
+			end
+		end
+	end
+
+	local function setEnabled(on)
+		if on == state.enabled then return end
+		state.enabled = on
+		if on then
+			if not state.conn then
+				state.conn = RunService.RenderStepped:Connect(loop)
+			end
+			notify('Aimlock','Включён (G — вкл/выкл)')
+		else
+			if state.conn then state.conn:Disconnect(); state.conn = nil end
+			if state.circle then pcall(function() state.circle:Remove() end); state.circle = nil end
+			notify('Aimlock','Выключен')
+		end
+	end
+
+	addcmd('aimlock',{'aim','aimbot','aimassist'},function(args, speaker)
+		setEnabled(not state.enabled)
+	end)
+	addcmd('aimfov',{'aimradius'},function(args, speaker)
+		local f = tonumber(args[1])
+		if not f then return notify('Aimlock','FOV: '..state.fov..'. Использование: aimfov [пиксели]') end
+		state.fov = math.max(10, f)
+		notify('Aimlock','FOV: '..state.fov)
+	end)
+	addcmd('aimsmooth',{'aimspeed'},function(args, speaker)
+		local s = tonumber(args[1])
+		if not s then return notify('Aimlock','Плавность: '..state.smooth) end
+		state.smooth = math.clamp(s, 0.01, 1)
+		notify('Aimlock','Плавность: '..state.smooth)
+	end)
+	addcmd('aimpart',{'aimtarget'},function(args, speaker)
+		local p = args[1] and tostring(args[1]):lower() or 'head'
+		if p == 'torso' or p == 'body' or p == 'hrp' then state.part = 'HumanoidRootPart'
+		else state.part = 'Head' end
+		notify('Aimlock','Наводка на: '..state.part)
+	end)
+
+	pcall(function() addbind('aimlock', "Enum.KeyCode.G") end)
 end
 
