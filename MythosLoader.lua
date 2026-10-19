@@ -106,6 +106,12 @@ CMDs[#CMDs+1] = {NAME='vr / vrtools',         DESC='[Mythos] Load VR Tools'}
 CMDs[#CMDs+1] = {NAME='audiologger / audio',  DESC='[Mythos] Load Audio Logger'}
 CMDs[#CMDs+1] = {NAME='antifling [maxLin] [maxAng]', DESC='[Mythos] Защита от флинга: cap velocity + wipe foreign BodyMovers'}
 CMDs[#CMDs+1] = {NAME='unantifling',          DESC='[Mythos] Выключить anti-fling'}
+CMDs[#CMDs+1] = {NAME='aimlock / aim / aimbot', DESC='[Mythos] Отдельный aimbot: toggle/hold, FOV, smooth, prediction'}
+CMDs[#CMDs+1] = {NAME='aimgui / aimmenu',     DESC='[Mythos] Окно настроек aimbot (IY/Dex style)'}
+CMDs[#CMDs+1] = {NAME='aimfov / aimsmooth / aimpart / aimdist / aimpred', DESC='[Mythos] Настройки aimbot'}
+CMDs[#CMDs+1] = {NAME='aimvis / aimteam / aimcircle / aimmode / aimcolor / aimkey', DESC='[Mythos] Тогглы и бинд aimbot'}
+CMDs[#CMDs+1] = {NAME='aimstatus / aimreset / aimhide', DESC='[Mythos] Статус / сброс / скрыть окно aimbot'}
+CMDs[#CMDs+1] = {NAME='loadaim / reloadaim',  DESC='[Mythos] Повторно загрузить модуль aimbot'}
 
 ]==]
     src, ok = insertBefore(src, "\nwait()\n\nfor i = 1, #CMDs do\n", MYTHOS_CMDS)
@@ -185,6 +191,7 @@ do
     addcmd('dex',{'explorer','dexplorer','loaddex'},function() _run("Dex Explorer", "mythos_explorer.lua", patchExplorer, true) end)
     addcmd('vr',{'vrtools','virtualreality','loadvr'},function() _run("VR Tools", "mythos_vr.lua", patchVR, true) end)
     addcmd('audiologger',{'audio','soundlogger','loadaudio'},function() _run("Audio Logger", "mythos_audiologger.lua", patchAudio, true) end)
+    addcmd('loadaim',{'reloadaim','loadaimbot'},function() _run("Aimbot GUI", "mythos_aimbot.lua", nil, true) end)
 
     -- ANTIFLING
     local AF = {
@@ -246,7 +253,8 @@ do
     end)
     addcmd('unantifling',{'unantifly','stopantifling'},function() afStop() end)
 
-    notify('Mythos','Registered: ;dex ;vr ;audiologger ;antifling ;unantifling')
+    notify('Mythos','Registered: ;dex ;vr ;audiologger ;aimgui ;antifling ;unantifling')
+    _run("Aimbot GUI", "mythos_aimbot.lua", nil, true)
 end
 ]==]
 

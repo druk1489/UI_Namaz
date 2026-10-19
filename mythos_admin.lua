@@ -4711,8 +4711,7 @@ CMDs[#CMDs + 1] = {NAME = 'addcheater / watch [plr] [причина]', DESC = '�
 CMDs[#CMDs + 1] = {NAME = 'removecheater / unwatch [plr]', DESC = 'Убрать читера из списка'}
 CMDs[#CMDs + 1] = {NAME = 'listwatch / wl', DESC = 'Показать список читеров (ESP навешивается при входе)'}
 CMDs[#CMDs + 1] = {NAME = 'unwatchall / clearwatch', DESC = 'Очистить список читеров'}
-CMDs[#CMDs + 1] = {NAME = 'aimlock / aim', DESC = 'Автонаведение прицела (плавное). Бинд G'}
-CMDs[#CMDs + 1] = {NAME = 'aimfov / aimsmooth / aimpart', DESC = 'Настройки aimlock: радиус / плавность / head-torso'}
+
 wait()
 
 for i = 1, #CMDs do
@@ -14293,112 +14292,5 @@ do
 	end)
 end
 
--- ================================================================
--- MYTHOS AIMLOCK — плавное наведение прицела на ближайшего к нему
--- игрока в радиусе FOV. Тоггл: aimlock (или бинд G). Solara-OK
--- (только математика камеры + Drawing.new, без хуков).
--- ================================================================
-do
-	local state = {
-		enabled = false,
-		fov = 180,
-		smooth = 0.18,
-		part = "Head",
-		circle = nil,
-		conn = nil,
-	}
 
-	local function ensureCircle()
-		if state.circle then return end
-		pcall(function()
-			state.circle = Drawing.new("Circle")
-			state.circle.Thickness = 1.5
-			state.circle.NumSides = 48
-			state.circle.Filled = false
-			state.circle.Color = Color3.fromRGB(255, 60, 60)
-			state.circle.Transparency = 0.5
-		end)
-	end
-
-	local function getTarget(cam)
-		local cx = cam.ViewportSize.X / 2
-		local cy = cam.ViewportSize.Y / 2
-		local best, bestDist = nil, state.fov
-		for _, plr in ipairs(Players:GetPlayers()) do
-			if plr ~= Players.LocalPlayer and plr.Character then
-				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-				local part = plr.Character:FindFirstChild(state.part) or plr.Character:FindFirstChild("HumanoidRootPart")
-				if hum and hum.Health > 0 and part then
-					local sp, onScreen = cam:WorldToViewportPoint(part.Position)
-					if onScreen and sp.Z > 0 then
-						local dx, dy = sp.X - cx, sp.Y - cy
-						local dist = math.sqrt(dx * dx + dy * dy)
-						if dist < bestDist then
-							bestDist = dist
-							best = part
-						end
-					end
-				end
-			end
-		end
-		return best
-	end
-
-	local function loop()
-		local cam = workspace.CurrentCamera
-		if not cam then return end
-		ensureCircle()
-		if state.circle then
-			state.circle.Visible = true
-			state.circle.Radius = state.fov
-			state.circle.Position = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
-		end
-		local target = getTarget(cam)
-		if target then
-			local cf = cam.CFrame
-			if (target.Position - cf.Position).Magnitude > 1 then
-				cam.CFrame = cf:Lerp(CFrame.new(cf.Position, target.Position), state.smooth)
-			end
-		end
-	end
-
-	local function setEnabled(on)
-		if on == state.enabled then return end
-		state.enabled = on
-		if on then
-			if not state.conn then
-				state.conn = RunService.RenderStepped:Connect(loop)
-			end
-			notify('Aimlock','Включён (G — вкл/выкл)')
-		else
-			if state.conn then state.conn:Disconnect(); state.conn = nil end
-			if state.circle then pcall(function() state.circle:Remove() end); state.circle = nil end
-			notify('Aimlock','Выключен')
-		end
-	end
-
-	addcmd('aimlock',{'aim','aimbot','aimassist'},function(args, speaker)
-		setEnabled(not state.enabled)
-	end)
-	addcmd('aimfov',{'aimradius'},function(args, speaker)
-		local f = tonumber(args[1])
-		if not f then return notify('Aimlock','FOV: '..state.fov..'. Использование: aimfov [пиксели]') end
-		state.fov = math.max(10, f)
-		notify('Aimlock','FOV: '..state.fov)
-	end)
-	addcmd('aimsmooth',{'aimspeed'},function(args, speaker)
-		local s = tonumber(args[1])
-		if not s then return notify('Aimlock','Плавность: '..state.smooth) end
-		state.smooth = math.clamp(s, 0.01, 1)
-		notify('Aimlock','Плавность: '..state.smooth)
-	end)
-	addcmd('aimpart',{'aimtarget'},function(args, speaker)
-		local p = args[1] and tostring(args[1]):lower() or 'head'
-		if p == 'torso' or p == 'body' or p == 'hrp' then state.part = 'HumanoidRootPart'
-		else state.part = 'Head' end
-		notify('Aimlock','Наводка на: '..state.part)
-	end)
-
-	pcall(function() addbind('aimlock', "Enum.KeyCode.G") end)
-end
 
